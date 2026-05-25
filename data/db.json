@@ -1,0 +1,154 @@
+{
+  "users": [
+    {
+      "id": "98d78427-adfd-4b37-8f47-c42a376bd836",
+      "code": "USR-280309",
+      "firstName": "Heriberto",
+      "lastName": "Gomez",
+      "nickname": "Herigoodman",
+      "passwordSalt": "b0e011885f23d9cb1688240d751a1e5b",
+      "passwordHash": "b4b2c3a909882b3325f5ba952f710dd29270966ae4a6905907bde66a83474b89ec17bcaca75a297abafc3274a8c293913a09d53d1a67fdbcbf6ee722c0bf3789",
+      "createdAt": "2026-05-22T16:32:40.090Z",
+      "updatedAt": "2026-05-22T16:32:40.090Z"
+    },
+    {
+      "id": "0e9f76c4-db55-4a2e-becb-1007ba622524",
+      "code": "USR-211054",
+      "firstName": "Abril",
+      "lastName": "Qqq",
+      "nickname": "Abi",
+      "passwordSalt": "eb49c20742e3e687a7c8c4e7303f0bf8",
+      "passwordHash": "c1f734e97c3c6349a9441f12e879143f99c30ec47bc5e84d9248b4249d1abfe0ea838daa6588f9c2bd8a8ba090dd9fff17f8ff295b5a71dbdfd56293c5d06d2c",
+      "createdAt": "2026-05-22T16:36:55.940Z",
+      "updatedAt": "2026-05-22T16:36:55.940Z"
+    }
+  ],
+  "sessions": [
+    {
+      "token": "8cec7c1fccf74556815b3be4432bf37ae96d0505be666060522e6c56eb2428da",
+      "userId": "98d78427-adfd-4b37-8f47-c42a376bd836",
+      "createdAt": "2026-05-22T16:32:40.093Z",
+      "expiresAt": "2026-06-21T16:32:40.093Z"
+    },
+    {
+      "token": "fc42ec66e010f1784cb5fbb5c7e1dcbccf6195ada950761ff96f373c22d78666",
+      "userId": "0e9f76c4-db55-4a2e-becb-1007ba622524",
+      "createdAt": "2026-05-22T16:36:55.943Z",
+      "expiresAt": "2026-06-21T16:36:55.943Z"
+    },
+    {
+      "token": "266ca662a29f0b58880c8f72544e3d59c5d8a40843e51b9a05dae55ce7c0b5ad",
+      "userId": "0e9f76c4-db55-4a2e-becb-1007ba622524",
+      "createdAt": "2026-05-22T16:40:33.463Z",
+      "expiresAt": "2026-06-21T16:40:33.463Z"
+    },
+    {
+      "token": "d5899caca161d912d734cd4c737eda93e7c7e63df9e9ae3a9da3b2a0e9eac26f",
+      "userId": "98d78427-adfd-4b37-8f47-c42a376bd836",
+      "createdAt": "2026-05-22T16:41:02.109Z",
+      "expiresAt": "2026-06-21T16:41:02.109Z"
+    }
+  ],
+  "globalHistory": [
+    {
+      "id": "41e61384-ed21-47c0-abe6-3dceba155e81",
+      "fromId": "98d78427-adfd-4b37-8f47-c42a376bd836",
+      "from": "Herigoodman",
+      "text": "hola",
+      "timestamp": "2026-05-22T16:37:29.427Z"
+    },
+    {
+      "id": "48b623c5-2557-457d-863c-b4435f19134e",
+      "fromId": "0e9f76c4-db55-4a2e-becb-1007ba622524",
+      "from": "Abi",
+      "text": "hey",
+      "timestamp": "2026-05-22T16:37:32.613Z"
+    },
+    {
+      "id": "2648d773-f8d9-4dab-90d2-3c84d737da2c",
+      "fromId": "0e9f76c4-db55-4a2e-becb-1007ba622524",
+      "from": "Abi",
+      "text": "😀",
+      "timestamp": "2026-05-22T16:38:31.983Z"
+    }
+  ],
+  "privateMessages": [
+    {
+      "id": "c0a47e6b-36a2-4f97-aa9e-ea8b6e6a820a",
+      "fromId": "98d78427-adfd-4b37-8f47-c42a376bd836",
+      "fromNickname": "Herigoodman",
+      "toId": "0e9f76c4-db55-4a2e-becb-1007ba622524",
+      "toNickname": "Abi",
+      "text": "Hola",
+      "timestamp": "2026-05-22T16:37:00.456Z"
+    },
+    {
+      "id": "219b0085-6b05-44f2-9daa-a1112dd8c3b4",
+      "fromId": "0e9f76c4-db55-4a2e-becb-1007ba622524",
+      "fromNickname": "Abi",
+      "toId": "98d78427-adfd-4b37-8f47-c42a376bd836",
+      "toNickname": "Herigoodman",
+      "text": "hola",
+      "timestamp": "2026-05-22T16:37:19.332Z"
+    },
+    {
+      "id": "bd09a2d7-760a-429f-9954-409357cbfddd",
+      "fromId": "0e9f76c4-db55-4a2e-becb-1007ba622524",
+      "fromNickname": "Abi",
+      "toId": "98d78427-adfd-4b37-8f47-c42a376bd836",
+      "toNickname": "Herigoodman",
+      "text": "hey",
+      "timestamp": "2026-05-22T16:41:49.330Z"
+    },
+    {
+      "id": "94e41c35-24c3-4eaa-a48b-08756d1b4230",
+      "fromId": "98d78427-adfd-4b37-8f47-c42a376bd836",
+      "fromNickname": "Herigoodman",
+      "toId": "0e9f76c4-db55-4a2e-becb-1007ba622524",
+      "toNickname": "Abi",
+      "text": "Holiii",
+      "timestamp": "2026-05-22T16:41:53.278Z"
+    }
+  ],
+  "groups": [
+    {
+      "id": "9cc64522-4a8f-4ce6-bc2a-b0c6e3c1d96f",
+      "name": "Xd",
+      "createdBy": "0e9f76c4-db55-4a2e-becb-1007ba622524",
+      "createdAt": "2026-05-22T16:39:29.569Z",
+      "memberIds": [
+        "0e9f76c4-db55-4a2e-becb-1007ba622524",
+        "98d78427-adfd-4b37-8f47-c42a376bd836"
+      ],
+      "history": [
+        {
+          "id": "45597094-4fb2-4b17-bcc1-ccae8701a799",
+          "groupId": "9cc64522-4a8f-4ce6-bc2a-b0c6e3c1d96f",
+          "groupName": "Xd",
+          "fromId": "0e9f76c4-db55-4a2e-becb-1007ba622524",
+          "from": "Abi",
+          "text": "😡",
+          "timestamp": "2026-05-22T16:41:35.950Z"
+        },
+        {
+          "id": "762458c2-a0d4-4224-a471-4f41807e90a3",
+          "groupId": "9cc64522-4a8f-4ce6-bc2a-b0c6e3c1d96f",
+          "groupName": "Xd",
+          "fromId": "0e9f76c4-db55-4a2e-becb-1007ba622524",
+          "from": "Abi",
+          "text": "😎",
+          "timestamp": "2026-05-22T16:41:39.875Z"
+        },
+        {
+          "id": "672ad608-5358-4db9-9409-106073e86184",
+          "groupId": "9cc64522-4a8f-4ce6-bc2a-b0c6e3c1d96f",
+          "groupName": "Xd",
+          "fromId": "98d78427-adfd-4b37-8f47-c42a376bd836",
+          "from": "Herigoodman",
+          "text": "Hola",
+          "timestamp": "2026-05-22T16:41:41.174Z"
+        }
+      ]
+    }
+  ]
+}

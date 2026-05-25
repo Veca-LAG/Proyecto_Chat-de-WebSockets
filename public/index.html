@@ -9,23 +9,62 @@
 </head>
 <body data-theme="dark">
     <div class="login-modal" id="loginModal" aria-labelledby="loginTitle" role="dialog" aria-modal="true">
-        <form class="login-card" id="loginForm" autocomplete="off">
-            <div class="login-icon" aria-hidden="true">💬</div>
-            <h1 id="loginTitle">Bienvenido al Chat</h1>
-            <p>Ingresa un nickname para conectarte al servidor WebSocket.</p>
+        <form class="login-card auth-card" id="loginForm" autocomplete="off">
+            <div class="login-brand">
+                <div class="login-icon" aria-hidden="true">💬</div>
+                <div>
+                    <h1 id="loginTitle">ChatSocket Pro</h1>
+                    <p id="loginDescription">Inicia sesión con tu cuenta para continuar en cualquier dispositivo.</p>
+                </div>
+            </div>
 
-            <label for="nicknameInput">Tu nickname</label>
-            <input
-                type="text"
-                id="nicknameInput"
-                name="nickname"
-                maxlength="20"
-                placeholder="Ej. Heriberto"
-                required
-            >
+            <div class="auth-tabs" role="tablist" aria-label="Tipo de acceso">
+                <button class="auth-tab auth-tab-active" id="loginModeButton" type="button" data-auth-mode="login" role="tab" aria-selected="true">Iniciar sesión</button>
+                <button class="auth-tab" id="registerModeButton" type="button" data-auth-mode="register" role="tab" aria-selected="false">Crear cuenta</button>
+            </div>
+
+            <div class="auth-grid" id="registerFields" hidden>
+                <div class="form-field">
+                    <label for="firstNameInput">Nombre</label>
+                    <input type="text" id="firstNameInput" name="firstName" maxlength="40" placeholder="Ej. Heriberto" autocomplete="given-name">
+                </div>
+                <div class="form-field">
+                    <label for="lastNameInput">Apellido</label>
+                    <input type="text" id="lastNameInput" name="lastName" maxlength="40" placeholder="Ej. Gómez" autocomplete="family-name">
+                </div>
+            </div>
+
+            <div class="form-field">
+                <label for="nicknameInput">Nickname</label>
+                <input
+                    type="text"
+                    id="nicknameInput"
+                    name="nickname"
+                    maxlength="20"
+                    placeholder="Ej. Heri"
+                    required
+                    autocomplete="username"
+                >
+            </div>
+
+            <div class="form-field">
+                <label for="passwordInput">Contraseña</label>
+                <input
+                    type="password"
+                    id="passwordInput"
+                    name="password"
+                    minlength="6"
+                    maxlength="72"
+                    placeholder="Mínimo 6 caracteres"
+                    required
+                    autocomplete="current-password"
+                >
+            </div>
+
             <small id="loginError" class="form-error" aria-live="polite"></small>
 
-            <button type="submit" class="primary-button">Entrar al chat</button>
+            <button type="submit" class="primary-button" id="authSubmitButton">Entrar al chat</button>
+            <p class="auth-helper" id="authHelperText">Tu sesión se guardará en este navegador. En otro dispositivo entra con tu nickname y contraseña.</p>
         </form>
     </div>
 
@@ -74,8 +113,10 @@
                 <div class="profile-mini-avatar" id="selfAvatar" aria-hidden="true">Tú</div>
                 <div class="profile-mini-text">
                     <strong id="selfNickname">Sin conectar</strong>
+                    <p id="selfCode" class="profile-code">Sin código</p>
                     <p id="connectionStatus" class="connection-status disconnected">Desconectado</p>
                 </div>
+                <button class="icon-button logout-button" id="logoutButton" type="button" aria-label="Cerrar sesión" title="Cerrar sesión">⎋</button>
             </footer>
         </aside>
 
