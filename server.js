@@ -3,6 +3,7 @@ const fs = require('fs');
 const path = require('path');
 const { randomUUID, randomBytes, scryptSync, timingSafeEqual } = require('crypto');
 const WebSocket = require('ws');
+const { json } = require('stream/consumers');
 
 const PORT = process.env.PORT || 3000;
 const PUBLIC_DIR = path.join(__dirname, 'public');
