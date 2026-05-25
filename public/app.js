@@ -340,9 +340,12 @@ function handleServerMessage(rawMessage) {
             if (state.activeChat?.type === 'global') {
                 renderMessage({ ...payload, timestamp, kind: 'global' });
             }
+            if (payload.fromId !== state.selfId) playNotify();
+
             break;
         case 'private_msg':
             receivePrivateMessage(payload, timestamp);
+            playNotify();
             break;
         case 'group_msg':
             receiveGroupMessage(payload, timestamp);
@@ -1012,6 +1015,7 @@ function handleLoginSubmit(event) {
     loadLocalState();
     updateSelfIdentity();
     renderChatList();
+    initNotify(); 
     connectWebSocket();
 }
 
