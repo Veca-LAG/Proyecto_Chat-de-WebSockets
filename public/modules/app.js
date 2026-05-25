@@ -21,7 +21,6 @@ socket.onmessage = (event) => {
 };
 
 btnEnviar.addEventListener("click", () => {
-
     const mensaje = texto.value;
 
     if (mensaje.trim() !== "") {
