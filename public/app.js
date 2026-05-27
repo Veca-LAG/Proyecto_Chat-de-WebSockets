@@ -1,4 +1,6 @@
 import { sendPrivate } from './modules/private.js';
+import { validateLogin, validateRegister } from './modules/login.js';
+import { getStoredSession, saveSession, clearSession, hasValidStoredSession } from './modules/session.js';
 import { setupTypingEvents, handleTypingStatus, clearTypingIndicator } from './modules/typing.js';
 import { initEmojiPicker } from './emoji/picker.js';
 import { initNotify, playNotify } from './sounds/notify.js';  
@@ -28,7 +30,12 @@ const SECTION_CONFIG = {
 
 const state = {
     socket: null,
+    authMode: 'login',
+    sessionToken: '',
     nickname: '',
+    firstName: '',
+    lastName: '',
+    userCode: '',
     selfId: null,
     users: [],
     groups: [],
@@ -43,7 +50,18 @@ const state = {
 const elements = {
     loginModal: document.getElementById('loginModal'),
     loginForm: document.getElementById('loginForm'),
+    loginModeButton: document.getElementById('loginModeButton'),
+    registerModeButton: document.getElementById('registerModeButton'),
+    registerFields: document.getElementById('registerFields'),
+    passwordConfirmField: document.getElementById('passwordConfirmField'),
+    firstNameInput: document.getElementById('firstNameInput'),
+    lastNameInput: document.getElementById('lastNameInput'),
     nicknameInput: document.getElementById('nicknameInput'),
+    passwordInput: document.getElementById('passwordInput'),
+    passwordConfirmInput: document.getElementById('passwordConfirmInput'),
+    authSubmitButton: document.getElementById('authSubmitButton'),
+    authHelperText: document.getElementById('authHelperText'),
+    loginDescription: document.getElementById('loginDescription'),
     loginError: document.getElementById('loginError'),
     connectionStatus: document.getElementById('connectionStatus'),
     chatTitle: document.getElementById('chatTitle'),
@@ -62,6 +80,8 @@ const elements = {
     emojiPicker: document.getElementById('emojiPicker'),
     selfNickname: document.getElementById('selfNickname'),
     selfAvatar: document.getElementById('selfAvatar'),
+    selfCode: document.getElementById('selfCode'),
+    logoutButton: document.getElementById('logoutButton'),
     profileAvatar: document.getElementById('profileAvatar'),
     profileName: document.getElementById('profileName'),
     profileStatus: document.getElementById('profileStatus'),
@@ -130,7 +150,7 @@ function getPrivateKey(nickname) {
  * @returns {string} Llave de almacenamiento.
  */
 function getStorageKey() {
-    return `chat-socket:${state.nickname || 'anonymous'}:frontend-v3`;
+    return `chat-socket:${state.selfId || state.nickname || 'anonymous'}:frontend-v4`;
 }
 
 /**
@@ -177,6 +197,88 @@ function sendJson(data) {
 
     state.socket.send(JSON.stringify(data));
     return true;
+}
+
+/**
+ * Cambia entre modo iniciar sesión y crear cuenta.
+ * @param {'login'|'register'} mode Modo de autenticación.
+ */
+function setAuthMode(mode) {
+    state.authMode = mode;
+    const isRegister = mode === 'register';
+
+    elements.registerFields.hidden = !isRegister;
+    elements.passwordConfirmField.hidden = !isRegister;
+    elements.loginModeButton.classList.toggle('auth-tab-active', !isRegister);
+    elements.registerModeButton.classList.toggle('auth-tab-active', isRegister);
+    elements.loginModeButton.setAttribute('aria-selected', String(!isRegister));
+    elements.registerModeButton.setAttribute('aria-selected', String(isRegister));
+    elements.passwordInput.autocomplete = isRegister ? 'new-password' : 'current-password';
+    elements.passwordConfirmInput.required = isRegister;
+    elements.authSubmitButton.textContent = isRegister ? 'Crear cuenta' : 'Entrar al chat';
+    elements.loginDescription.textContent = isRegister
+        ? 'Crea tu cuenta para usar el chat desde varios dispositivos.'
+        : 'Inicia sesión con tu nickname y contraseña.';
+    elements.authHelperText.textContent = isRegister
+        ? 'Tu código único se generará automáticamente al crear la cuenta.'
+        : 'Si la cuenta no existe, usa la opción Crear cuenta.';
+    elements.loginError.textContent = '';
+}
+
+/**
+ * Devuelve valores actuales del formulario de acceso.
+ * @returns {object} Valores del formulario.
+ */
+function getAuthFormValues() {
+    return {
+        firstName: elements.firstNameInput.value,
+        lastName: elements.lastNameInput.value,
+        nickname: elements.nicknameInput.value,
+        password: elements.passwordInput.value,
+        passwordConfirm: elements.passwordConfirmInput.value
+    };
+}
+
+/**
+ * Activa/desactiva el estado de carga del formulario de autenticación.
+ * @param {boolean} loading Indica si hay solicitud en proceso.
+ */
+function setAuthLoading(loading) {
+    elements.authSubmitButton.disabled = loading;
+    elements.authSubmitButton.textContent = loading
+        ? 'Validando...'
+        : (state.authMode === 'register' ? 'Crear cuenta' : 'Entrar al chat');
+}
+
+/**
+ * Muestra la pantalla de login y prepara el formulario.
+ * @param {string} [message] Mensaje opcional de error.
+ */
+function showLogin(message = '') {
+    state.shouldReconnect = false;
+    setAuthLoading(false);
+    elements.loginError.textContent = message;
+    elements.loginModal.classList.remove('hidden');
+    elements.passwordInput.value = '';
+    elements.passwordConfirmInput.value = '';
+    elements.nicknameInput.focus();
+}
+
+/**
+ * Guarda los datos públicos del usuario autenticado en el estado local.
+ * @param {object} user Usuario público enviado por el servidor.
+ * @param {string} sessionToken Token de sesión persistente.
+ */
+function setAuthenticatedUser(user, sessionToken) {
+    state.sessionToken = sessionToken || state.sessionToken;
+    state.selfId = user.id;
+    state.nickname = user.nickname;
+    state.firstName = user.firstName || '';
+    state.lastName = user.lastName || '';
+    state.userCode = user.code || '';
+    saveSession({ sessionToken: state.sessionToken, user });
+    loadLocalState();
+    updateSelfIdentity();
 }
 
 /**
@@ -240,25 +342,39 @@ function canSendToActiveChat() {
 function updateSelfIdentity() {
     elements.selfNickname.textContent = state.nickname || 'Sin conectar';
     elements.selfAvatar.textContent = state.nickname ? getInitials(state.nickname) : 'Tú';
+    elements.selfCode.textContent = state.userCode || 'Sin código';
 }
 
 /**
- * Abre la conexión WebSocket después de validar el nickname.
+ * Abre la conexión WebSocket y envía una solicitud de autenticación.
+ * @param {{type:string,payload:object}|null} authRequest Mensaje login/register/resume.
  */
-function connectWebSocket() {
+function connectWebSocket(authRequest = null) {
+    if (state.socket && [WebSocket.OPEN, WebSocket.CONNECTING].includes(state.socket.readyState)) {
+        state.socket.close();
+    }
+
     updateConnectionStatus('connecting');
     state.socket = new WebSocket(getWebSocketUrl());
+    state.pendingAuthRequest = authRequest;
 
     state.socket.addEventListener('open', () => {
         state.reconnectAttempts = 0;
         state.shouldReconnect = true;
         updateConnectionStatus('connected');
-        elements.loginModal.classList.add('hidden');
-        sendJson({
-            type: 'join',
-            payload: { nickname: state.nickname },
-            timestamp: new Date().toISOString()
-        });
+
+        const request = state.pendingAuthRequest || (
+            state.sessionToken
+                ? { type: 'resume', payload: { sessionToken: state.sessionToken } }
+                : null
+        );
+
+        if (request) {
+            sendJson({
+                ...request,
+                timestamp: new Date().toISOString()
+            });
+        }
     });
 
     state.socket.addEventListener('message', (event) => {
@@ -267,13 +383,15 @@ function connectWebSocket() {
 
     state.socket.addEventListener('close', () => {
         updateConnectionStatus('disconnected');
-        if (state.shouldReconnect) {
+        setAuthLoading(false);
+        if (state.shouldReconnect && state.sessionToken) {
             scheduleReconnect();
         }
     });
 
     state.socket.addEventListener('error', () => {
         updateConnectionStatus('disconnected');
+        setAuthLoading(false);
     });
 }
 
@@ -286,7 +404,7 @@ function scheduleReconnect() {
 
     window.setTimeout(() => {
         if (state.nickname && (!state.socket || state.socket.readyState === WebSocket.CLOSED)) {
-            connectWebSocket();
+            connectWebSocket({ type: 'resume', payload: { sessionToken: state.sessionToken } });
         }
     }, delay);
 }
@@ -307,11 +425,44 @@ function handleServerMessage(rawMessage) {
     const { type, payload = {}, timestamp } = data;
 
     switch (type) {
+        case 'auth_success':
+            setAuthLoading(false);
+            setAuthenticatedUser(payload.user, payload.sessionToken);
+            elements.loginModal.classList.add('hidden');
+            renderChatList();
+            renderActiveChatShell();
+            renderActiveChatMessages();
+            updateComposerState();
+            checkInviteToken();
+            break;
+        case 'auth_error':
+            setAuthLoading(false);
+            clearSession();
+            state.sessionToken = '';
+            state.shouldReconnect = false;
+            if (state.socket && state.socket.readyState === WebSocket.OPEN) {
+                state.socket.close();
+            }
+            updateConnectionStatus('disconnected');
+            showLogin(payload.text || 'No se pudo iniciar sesión.');
+            break;
+        case 'logout_success':
+            clearSession();
+            window.location.reload();
+            break;
+        case 'private_conversations':
+            loadPrivateConversationsFromServer(payload.conversations || []);
+            renderChatList();
+            if (state.activeChat?.type === 'private') {
+                renderActiveChatMessages();
+            }
+            break;
         case 'invite_link':
             showInviteLink(payload);
             break;
         case 'join_success':
             state.selfId = payload.id;
+            state.nickname = payload.nickname || state.nickname;
             updateSelfIdentity();
             renderChatList();
             updateComposerState();
@@ -345,10 +496,11 @@ function handleServerMessage(rawMessage) {
             break;
         case 'private_msg':
             receivePrivateMessage(payload, timestamp);
-            playNotify();
+            if (payload.fromId !== state.selfId) playNotify();
             break;
         case 'group_msg':
             receiveGroupMessage(payload, timestamp);
+            if (payload.fromId !== state.selfId) playNotify();
             break;
         case 'private_error':
         case 'group_error':
@@ -607,6 +759,18 @@ function getActiveUserByNickname(nickname) {
 }
 
 /**
+ * Obtiene datos conocidos de un usuario aunque no esté conectado.
+ * @param {string} nickname Nickname.
+ * @returns {object|undefined} Usuario conocido.
+ */
+function getKnownUserByNickname(nickname) {
+    const active = getActiveUserByNickname(nickname);
+    if (active) return active;
+    const conversation = state.privateConversations[getPrivateKey(nickname)];
+    return conversation?.user;
+}
+
+/**
  * Garantiza que exista una conversación privada local.
  * @param {string} nickname Nickname de contacto.
  * @returns {object} Conversación.
@@ -622,6 +786,26 @@ function ensurePrivateConversation(nickname) {
     }
 
     return state.privateConversations[key];
+}
+
+/**
+ * Carga conversaciones privadas persistidas en el servidor.
+ * @param {Array<object>} conversations Conversaciones del usuario autenticado.
+ */
+function loadPrivateConversationsFromServer(conversations) {
+    conversations.forEach((conversation) => {
+        const nickname = conversation.user?.nickname;
+        if (!nickname) return;
+
+        const local = ensurePrivateConversation(nickname);
+        local.user = conversation.user;
+        local.messages = (conversation.messages || []).map((message) => ({
+            ...message,
+            kind: 'private'
+        }));
+        local.updatedAt = conversation.updatedAt || local.updatedAt;
+    });
+    saveLocalState();
 }
 
 /**
@@ -655,14 +839,16 @@ function renderActiveChatShell() {
 
     if (state.activeChat.type === 'private') {
         const activeUser = getActiveUserByNickname(state.activeChat.name);
+        const knownUser = getKnownUserByNickname(state.activeChat.name);
+        const fullName = [knownUser?.firstName, knownUser?.lastName].filter(Boolean).join(' ');
         elements.chatAvatar.textContent = getInitials(state.activeChat.name);
         elements.chatTitle.textContent = state.activeChat.name;
         elements.chatSubtitle.textContent = activeUser ? 'Chat privado · usuario en línea' : 'Chat privado · usuario desconectado';
         elements.profileAvatar.textContent = getInitials(state.activeChat.name);
         elements.profileName.textContent = state.activeChat.name;
         elements.profileStatus.textContent = activeUser ? '● En línea' : '○ Desconectado';
-        elements.profileDescription.textContent = 'Los mensajes privados solo se muestran para el emisor y el destinatario.';
-        elements.profileExtra.innerHTML = '';
+        elements.profileDescription.textContent = fullName || 'Los mensajes privados solo se muestran para el emisor y el destinatario.';
+        elements.profileExtra.innerHTML = knownUser?.code ? `<h3>Código de usuario</h3><p>${knownUser.code}</p>` : '';
         return;
     }
 
@@ -862,22 +1048,29 @@ function scrollToLastMessage() {
  * @param {string} timestamp Fecha del servidor.
  */
 function receivePrivateMessage(payload, timestamp) {
-    const conversation = ensurePrivateConversation(payload.from);
+    const isOwn = payload.fromId === state.selfId;
+    const counterpartNickname = isOwn ? payload.to : payload.from;
+    const conversation = ensurePrivateConversation(counterpartNickname);
     const message = {
         from: payload.from,
         fromId: payload.fromId,
+        to: payload.to,
+        toId: payload.toId,
         text: payload.text,
         timestamp,
         kind: 'private',
-        direction: 'in'
+        direction: isOwn ? 'out' : 'in'
     };
 
-    conversation.messages.push(message);
+    const duplicated = conversation.messages.some((item) => item.id && payload.id && item.id === payload.id);
+    if (!duplicated) {
+        conversation.messages.push(message);
+    }
     conversation.updatedAt = timestamp || new Date().toISOString();
     saveLocalState();
     renderChatList();
 
-    if (state.activeChat?.type === 'private' && state.activeChat.name === payload.from) {
+    if (state.activeChat?.type === 'private' && state.activeChat.name === counterpartNickname) {
         renderMessage(message);
     }
 }
@@ -998,25 +1191,30 @@ function handleMessageSubmit(event) {
 }
 
 /**
- * Valida nickname e inicia sesión WebSocket.
+ * Valida login/registro e inicia la autenticación WebSocket.
  * @param {SubmitEvent} event Evento submit.
  */
 function handleLoginSubmit(event) {
     event.preventDefault();
 
-    const nickname = sanitizeInput(elements.nicknameInput.value, MAX_NICKNAME_LENGTH);
-    if (!nickname) {
-        elements.loginError.textContent = 'El nickname no puede estar vacío.';
+    const values = getAuthFormValues();
+    const validation = state.authMode === 'register'
+        ? validateRegister(values)
+        : validateLogin(values);
+
+    if (!validation.valid) {
+        elements.loginError.textContent = validation.error;
         return;
     }
 
     elements.loginError.textContent = '';
-    state.nickname = nickname;
-    loadLocalState();
-    updateSelfIdentity();
-    renderChatList();
-    initNotify(); 
-    connectWebSocket();
+    setAuthLoading(true);
+    initNotify();
+
+    connectWebSocket({
+        type: state.authMode === 'register' ? 'register' : 'login',
+        payload: validation.data
+    });
 }
 
 /**
@@ -1408,6 +1606,14 @@ function initApp() {
         })
     });
 
+    elements.loginModeButton.addEventListener('click', () => setAuthMode('login'));
+    elements.registerModeButton.addEventListener('click', () => setAuthMode('register'));
+    elements.logoutButton.addEventListener('click', () => {
+        state.shouldReconnect = false;
+        sendJson({ type: 'logout', payload: { sessionToken: state.sessionToken }, timestamp: new Date().toISOString() });
+        clearSession();
+        window.location.reload();
+    });
     elements.loginForm.addEventListener('submit', handleLoginSubmit);
     elements.messageForm.addEventListener('submit', handleMessageSubmit);
     elements.listMenuButton.addEventListener('click', toggleListMenu);
@@ -1440,6 +1646,22 @@ function initApp() {
             setTimeout(() => { copied.style.display = 'none'; }, 2000);
         });
     });
+
+    setAuthMode('login');
+    const storedSession = getStoredSession();
+    if (hasValidStoredSession(storedSession)) {
+        state.sessionToken = storedSession.sessionToken;
+        const user = storedSession.user;
+        state.selfId = user.id;
+        state.nickname = user.nickname;
+        state.firstName = user.firstName || '';
+        state.lastName = user.lastName || '';
+        state.userCode = user.code || '';
+        updateSelfIdentity();
+        loadLocalState();
+        setAuthLoading(true);
+        connectWebSocket({ type: 'resume', payload: { sessionToken: storedSession.sessionToken } });
+    }
 }
 
 initApp();

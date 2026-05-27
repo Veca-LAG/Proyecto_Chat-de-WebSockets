@@ -61,6 +61,19 @@
                 >
             </div>
 
+            <div class="form-field" id="passwordConfirmField" hidden>
+                <label for="passwordConfirmInput">Confirmar contraseña</label>
+                <input
+                    type="password"
+                    id="passwordConfirmInput"
+                    name="passwordConfirm"
+                    minlength="6"
+                    maxlength="72"
+                    placeholder="Repite tu contraseña"
+                    autocomplete="new-password"
+                >
+            </div>
+
             <small id="loginError" class="form-error" aria-live="polite"></small>
 
             <button type="submit" class="primary-button" id="authSubmitButton">Entrar al chat</button>

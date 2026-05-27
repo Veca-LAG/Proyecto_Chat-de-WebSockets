@@ -37,7 +37,7 @@ export function validateLogin(values) {
 
 /**
  * Valida datos para crear una cuenta.
- * @param {{firstName:string,lastName:string,nickname:string,password:string}} values Datos del formulario.
+ * @param {{firstName:string,lastName:string,nickname:string,password:string,passwordConfirm:string}} values Datos del formulario.
  * @returns {{valid:boolean,data:object,error:string}} Resultado.
  */
 export function validateRegister(values) {
@@ -45,6 +45,7 @@ export function validateRegister(values) {
     const lastName = sanitizeAuthInput(values.lastName, MAX_NAME_LENGTH);
     const nickname = sanitizeAuthInput(values.nickname, MAX_NICKNAME_LENGTH);
     const password = String(values.password || '');
+    const passwordConfirm = String(values.passwordConfirm || '');
 
     if (!firstName || !lastName || !nickname) {
         return { valid: false, data: {}, error: 'Nombre, apellido y nickname son obligatorios.' };
@@ -52,6 +53,14 @@ export function validateRegister(values) {
 
     if (password.length < MIN_PASSWORD_LENGTH) {
         return { valid: false, data: {}, error: `La contraseña debe tener al menos ${MIN_PASSWORD_LENGTH} caracteres.` };
+    }
+
+    if (!passwordConfirm) {
+        return { valid: false, data: {}, error: 'Confirma tu contraseña.' };
+    }
+
+    if (password !== passwordConfirm) {
+        return { valid: false, data: {}, error: 'Las contraseñas no coinciden.' };
     }
 
     return { valid: true, data: { firstName, lastName, nickname, password }, error: '' };

@@ -554,6 +554,7 @@ function validateRegisterPayload(payload) {
     const lastName = sanitizeText(payload.lastName, MAX_NAME_LENGTH);
     const nickname = sanitizeText(payload.nickname, MAX_NICKNAME_LENGTH);
     const password = String(payload.password || '');
+    const passwordConfirm = payload.passwordConfirm === undefined ? password : String(payload.passwordConfirm || '');
 
     if (!firstName || !lastName || !nickname) {
         return { valid: false, data: {}, error: 'Nombre, apellido y nickname son obligatorios.' };
@@ -561,6 +562,10 @@ function validateRegisterPayload(payload) {
 
     if (password.length < MIN_PASSWORD_LENGTH) {
         return { valid: false, data: {}, error: `La contraseña debe tener al menos ${MIN_PASSWORD_LENGTH} caracteres.` };
+    }
+
+    if (password !== passwordConfirm) {
+        return { valid: false, data: {}, error: 'Las contraseñas no coinciden.' };
     }
 
     if (findUserByNickname(nickname)) {
@@ -614,8 +619,18 @@ function handleLogin(ws, payload) {
     const password = String(payload.password || '');
     const user = findUserByNickname(nickname);
 
-    if (!user || !verifyPassword(password, user)) {
-        sendJson(ws, { type: 'auth_error', payload: { text: 'Nickname o contraseña incorrectos.' }, timestamp: new Date().toISOString() });
+    if (!nickname || !password) {
+        sendJson(ws, { type: 'auth_error', payload: { text: 'Ingresa nickname y contraseña.' }, timestamp: new Date().toISOString() });
+        return;
+    }
+
+    if (!user) {
+        sendJson(ws, { type: 'auth_error', payload: { text: 'No existe una cuenta registrada con ese nickname.' }, timestamp: new Date().toISOString() });
+        return;
+    }
+
+    if (!verifyPassword(password, user)) {
+        sendJson(ws, { type: 'auth_error', payload: { text: 'La contraseña es incorrecta.' }, timestamp: new Date().toISOString() });
         return;
     }
 
