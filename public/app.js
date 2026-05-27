@@ -37,13 +37,29 @@ const state = {
     activeSection: 'global',
     activeChat: null,
     reconnectAttempts: 0,
-    shouldReconnect: false
+    shouldReconnect: false,
+
+    // NUEVO
+    authMode: 'login'
 };
 
 const elements = {
     loginModal: document.getElementById('loginModal'),
     loginForm: document.getElementById('loginForm'),
+
     nicknameInput: document.getElementById('nicknameInput'),
+    firstNameInput: document.getElementById('firstNameInput'),
+    lastNameInput: document.getElementById('lastNameInput'),
+    passwordInput: document.getElementById('passwordInput'),
+
+    registerFields: document.getElementById('registerFields'),
+
+    loginModeButton: document.getElementById('loginModeButton'),
+    registerModeButton: document.getElementById('registerModeButton'),
+
+    authSubmitButton: document.getElementById('authSubmitButton'),
+    authHelperText: document.getElementById('authHelperText'),
+
     loginError: document.getElementById('loginError'),
     connectionStatus: document.getElementById('connectionStatus'),
     chatTitle: document.getElementById('chatTitle'),
@@ -100,6 +116,101 @@ function sanitizeInput(value, maxLength) {
         .replace(/<[^>]*>?/gm, '')
         .trim()
         .slice(0, maxLength);
+}
+/**
+ * Cambia entre modo login y register.
+ * @param {'login' | 'register'} mode
+ */
+function setAuthMode(mode) {
+
+    state.authMode = mode;
+
+    const isLogin = mode === 'login';
+
+    // Tabs activas
+    elements.loginModeButton.classList.toggle(
+        'auth-tab-active',
+        isLogin
+    );
+
+    elements.registerModeButton.classList.toggle(
+        'auth-tab-active',
+        !isLogin
+    );
+
+    // Accesibilidad
+    elements.loginModeButton.setAttribute(
+        'aria-selected',
+        String(isLogin)
+    );
+
+    elements.registerModeButton.setAttribute(
+        'aria-selected',
+        String(!isLogin)
+    );
+
+    // Mostrar u ocultar campos
+    elements.registerFields.hidden = isLogin;
+
+    // Required dinámico
+    elements.firstNameInput.required = !isLogin;
+    elements.lastNameInput.required = !isLogin;
+
+    // Cambiar autocomplete
+    elements.passwordInput.autocomplete = isLogin
+        ? 'current-password'
+        : 'new-password';
+
+    // Cambiar texto del botón
+    elements.authSubmitButton.textContent = isLogin
+        ? 'Entrar al chat'
+        : 'Registrarse';
+
+    // Texto auxiliar
+    elements.authHelperText.textContent = isLogin
+        ? 'Tu sesión se guardará en este navegador.'
+        : 'Crea una cuenta para comenzar a usar el chat.';
+
+    // Limpiar errores
+    elements.loginError.textContent = '';
+}
+/**
+ * Obtiene usuarios guardados.
+ * @returns {Array}
+ */
+function getStoredUsers() {
+
+    const users = localStorage.getItem('chat_users');
+
+    return users
+        ? JSON.parse(users)
+        : [];
+}
+
+/**
+ * Guarda usuarios.
+ * @param {Array} users
+ */
+function saveStoredUsers(users) {
+
+    localStorage.setItem(
+        'chat_users',
+        JSON.stringify(users)
+    );
+}
+
+/**
+ * Busca usuario por nickname.
+ * @param {string} nickname
+ * @returns {Object|null}
+ */
+function findUserByNickname(nickname) {
+
+    const users = getStoredUsers();
+
+    return users.find(
+        user => user.nickname === nickname
+    ) || null;
 }
 
 /**
@@ -998,24 +1109,153 @@ function handleMessageSubmit(event) {
 }
 
 /**
- * Valida nickname e inicia sesión WebSocket.
- * @param {SubmitEvent} event Evento submit.
+ * Valida login y registro.
+ * @param {SubmitEvent} event
  */
 function handleLoginSubmit(event) {
+
     event.preventDefault();
 
-    const nickname = sanitizeInput(elements.nicknameInput.value, MAX_NICKNAME_LENGTH);
+    const nickname = sanitizeInput(
+        elements.nicknameInput.value,
+        MAX_NICKNAME_LENGTH
+    );
+
+    const password = sanitizeInput(
+        elements.passwordInput.value,
+        72
+    );
+
+    // Limpiar errores
+    elements.loginError.textContent = '';
+    elements.loginError.style.color = '';
+
+    /**
+     * VALIDACIONES
+     */
+
     if (!nickname) {
-        elements.loginError.textContent = 'El nickname no puede estar vacío.';
+
+        elements.loginError.textContent =
+            'El nickname no puede estar vacío.';
+
         return;
     }
 
-    elements.loginError.textContent = '';
+    if (!password || password.length < 6) {
+
+        elements.loginError.textContent =
+            'La contraseña debe tener mínimo 6 caracteres.';
+
+        return;
+    }
+
+    /**
+     * REGISTRO
+     */
+
+    if (state.authMode === 'register') {
+
+        const firstName = sanitizeInput(
+            elements.firstNameInput.value,
+            40
+        );
+
+        const lastName = sanitizeInput(
+            elements.lastNameInput.value,
+            40
+        );
+
+        if (!firstName) {
+
+            elements.loginError.textContent =
+                'Ingresa tu nombre.';
+
+            return;
+        }
+
+        if (!lastName) {
+
+            elements.loginError.textContent =
+                'Ingresa tu apellido.';
+
+            return;
+        }
+
+        // Verificar si ya existe
+        const existingUser =
+            findUserByNickname(nickname);
+
+        if (existingUser) {
+
+            elements.loginError.textContent =
+                'Ese nickname ya está registrado.';
+
+            return;
+        }
+
+        // Crear usuario
+        const users = getStoredUsers();
+
+        users.push({
+            firstName,
+            lastName,
+            nickname,
+            password
+        });
+
+        saveStoredUsers(users);
+
+        // Mensaje éxito
+        elements.loginError.style.color = '#22c55e';
+
+        elements.loginError.textContent =
+            'Cuenta creada correctamente.';
+
+        // Limpiar campos
+        elements.firstNameInput.value = '';
+        elements.lastNameInput.value = '';
+        elements.passwordInput.value = '';
+
+        // Cambiar a login
+        setAuthMode('login');
+
+        return;
+    }
+
+    /**
+     * LOGIN
+     */
+
+    const user =
+        findUserByNickname(nickname);
+
+    // Usuario no existe
+    if (!user) {
+
+        elements.loginError.textContent =
+            'La cuenta no existe.';
+
+        return;
+    }
+
+    // Contraseña incorrecta
+    if (user.password !== password) {
+
+        elements.loginError.textContent =
+            'Contraseña incorrecta.';
+
+        return;
+    }
+
+    // LOGIN CORRECTO
     state.nickname = nickname;
+
     loadLocalState();
     updateSelfIdentity();
     renderChatList();
-    initNotify(); 
+    initNotify();
+
     connectWebSocket();
 }
 
@@ -1409,6 +1649,19 @@ function initApp() {
     });
 
     elements.loginForm.addEventListener('submit', handleLoginSubmit);
+    elements.loginModeButton.addEventListener(
+    'click',
+    () => {
+        setAuthMode('login');
+    }
+);
+
+elements.registerModeButton.addEventListener(
+    'click',
+    () => {
+        setAuthMode('register');
+    }
+);
     elements.messageForm.addEventListener('submit', handleMessageSubmit);
     elements.listMenuButton.addEventListener('click', toggleListMenu);
     elements.chatMenuButton.addEventListener('click', toggleChatMenu);
@@ -1440,6 +1693,8 @@ function initApp() {
             setTimeout(() => { copied.style.display = 'none'; }, 2000);
         });
     });
+    // Estado inicial
+setAuthMode('login');
 }
 
 initApp();
