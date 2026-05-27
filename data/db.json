@@ -1,7 +1,34 @@
 {
-  "users": [],
-  "sessions": [],
-  "globalHistory": [],
+  "users": [
+    {
+      "id": "e891c255-2030-474d-99db-08c6b11b9c1c",
+      "code": "USR-955228",
+      "firstName": "Azi",
+      "lastName": "Perez",
+      "nickname": "Ab",
+      "passwordSalt": "8a5c3395a0dbd4794917a4f5bb947efb",
+      "passwordHash": "e669fd4fafbd50b334f3047590c46c221beffb909c5456fcfb36389f71048e768bf99124bb70d9f20dfc7653299737eee8995c066774353b74cd4c91fa946eb0",
+      "createdAt": "2026-05-27T22:16:53.669Z",
+      "updatedAt": "2026-05-27T22:16:53.669Z"
+    }
+  ],
+  "sessions": [
+    {
+      "token": "96adf392f266de01a6b22efaf31e8838560551c335f00b3be524be8538ea11d3",
+      "userId": "e891c255-2030-474d-99db-08c6b11b9c1c",
+      "createdAt": "2026-05-27T22:16:53.670Z",
+      "expiresAt": "2026-06-26T22:16:53.670Z"
+    }
+  ],
+  "globalHistory": [
+    {
+      "id": "844fe7eb-3eff-485d-83b3-973796bba171",
+      "fromId": "e891c255-2030-474d-99db-08c6b11b9c1c",
+      "from": "Ab",
+      "text": "🎉",
+      "timestamp": "2026-05-27T22:17:14.419Z"
+    }
+  ],
   "privateMessages": [],
   "groups": []
 }

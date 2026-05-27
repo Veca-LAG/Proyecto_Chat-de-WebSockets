@@ -1050,5 +1050,5 @@ wss.on('connection', (ws) => {
 });
 
 server.listen(PORT, () => {
-    logEvent(`Servidor en http://localhost:${PORT}`);
+    logEvent(`Servidor en http://0.0.0.0:${PORT}`);
 });
