@@ -44,24 +44,16 @@ const state = {
     activeSection: 'global',
     activeChat: null,
     reconnectAttempts: 0,
-    shouldReconnect: false
+    shouldReconnect: false,
+
+    // NUEVO
+    authMode: 'login'
 };
 
 const elements = {
     loginModal: document.getElementById('loginModal'),
     loginForm: document.getElementById('loginForm'),
-    loginModeButton: document.getElementById('loginModeButton'),
-    registerModeButton: document.getElementById('registerModeButton'),
-    registerFields: document.getElementById('registerFields'),
-    passwordConfirmField: document.getElementById('passwordConfirmField'),
-    firstNameInput: document.getElementById('firstNameInput'),
-    lastNameInput: document.getElementById('lastNameInput'),
     nicknameInput: document.getElementById('nicknameInput'),
-    passwordInput: document.getElementById('passwordInput'),
-    passwordConfirmInput: document.getElementById('passwordConfirmInput'),
-    authSubmitButton: document.getElementById('authSubmitButton'),
-    authHelperText: document.getElementById('authHelperText'),
-    loginDescription: document.getElementById('loginDescription'),
     loginError: document.getElementById('loginError'),
     connectionStatus: document.getElementById('connectionStatus'),
     chatTitle: document.getElementById('chatTitle'),
@@ -120,6 +112,101 @@ function sanitizeInput(value, maxLength) {
         .replace(/<[^>]*>?/gm, '')
         .trim()
         .slice(0, maxLength);
+}
+/**
+ * Cambia entre modo login y register.
+ * @param {'login' | 'register'} mode
+ */
+function setAuthMode(mode) {
+
+    state.authMode = mode;
+
+    const isLogin = mode === 'login';
+
+    // Tabs activas
+    elements.loginModeButton.classList.toggle(
+        'auth-tab-active',
+        isLogin
+    );
+
+    elements.registerModeButton.classList.toggle(
+        'auth-tab-active',
+        !isLogin
+    );
+
+    // Accesibilidad
+    elements.loginModeButton.setAttribute(
+        'aria-selected',
+        String(isLogin)
+    );
+
+    elements.registerModeButton.setAttribute(
+        'aria-selected',
+        String(!isLogin)
+    );
+
+    // Mostrar u ocultar campos
+    elements.registerFields.hidden = isLogin;
+
+    // Required dinámico
+    elements.firstNameInput.required = !isLogin;
+    elements.lastNameInput.required = !isLogin;
+
+    // Cambiar autocomplete
+    elements.passwordInput.autocomplete = isLogin
+        ? 'current-password'
+        : 'new-password';
+
+    // Cambiar texto del botón
+    elements.authSubmitButton.textContent = isLogin
+        ? 'Entrar al chat'
+        : 'Registrarse';
+
+    // Texto auxiliar
+    elements.authHelperText.textContent = isLogin
+        ? 'Tu sesión se guardará en este navegador.'
+        : 'Crea una cuenta para comenzar a usar el chat.';
+
+    // Limpiar errores
+    elements.loginError.textContent = '';
+}
+/**
+ * Obtiene usuarios guardados.
+ * @returns {Array}
+ */
+function getStoredUsers() {
+
+    const users = localStorage.getItem('chat_users');
+
+    return users
+        ? JSON.parse(users)
+        : [];
+}
+
+/**
+ * Guarda usuarios.
+ * @param {Array} users
+ */
+function saveStoredUsers(users) {
+
+    localStorage.setItem(
+        'chat_users',
+        JSON.stringify(users)
+    );
+}
+
+/**
+ * Busca usuario por nickname.
+ * @param {string} nickname
+ * @returns {Object|null}
+ */
+function findUserByNickname(nickname) {
+
+    const users = getStoredUsers();
+
+    return users.find(
+        user => user.nickname === nickname
+    ) || null;
 }
 
 /**
@@ -1191,30 +1278,26 @@ function handleMessageSubmit(event) {
 }
 
 /**
- * Valida login/registro e inicia la autenticación WebSocket.
+ * Valida nickname e inicia sesión WebSocket.
  * @param {SubmitEvent} event Evento submit.
  */
 function handleLoginSubmit(event) {
+
     event.preventDefault();
 
-    const values = getAuthFormValues();
-    const validation = state.authMode === 'register'
-        ? validateRegister(values)
-        : validateLogin(values);
-
-    if (!validation.valid) {
-        elements.loginError.textContent = validation.error;
+    const nickname = sanitizeInput(elements.nicknameInput.value, MAX_NICKNAME_LENGTH);
+    if (!nickname) {
+        elements.loginError.textContent = 'El nickname no puede estar vacío.';
         return;
     }
 
     elements.loginError.textContent = '';
-    setAuthLoading(true);
-    initNotify();
-
-    connectWebSocket({
-        type: state.authMode === 'register' ? 'register' : 'login',
-        payload: validation.data
-    });
+    state.nickname = nickname;
+    loadLocalState();
+    updateSelfIdentity();
+    renderChatList();
+    initNotify(); 
+    connectWebSocket();
 }
 
 /**
@@ -1615,6 +1698,19 @@ function initApp() {
         window.location.reload();
     });
     elements.loginForm.addEventListener('submit', handleLoginSubmit);
+    elements.loginModeButton.addEventListener(
+    'click',
+    () => {
+        setAuthMode('login');
+    }
+);
+
+elements.registerModeButton.addEventListener(
+    'click',
+    () => {
+        setAuthMode('register');
+    }
+);
     elements.messageForm.addEventListener('submit', handleMessageSubmit);
     elements.listMenuButton.addEventListener('click', toggleListMenu);
     elements.chatMenuButton.addEventListener('click', toggleChatMenu);
@@ -1646,22 +1742,6 @@ function initApp() {
             setTimeout(() => { copied.style.display = 'none'; }, 2000);
         });
     });
-
-    setAuthMode('login');
-    const storedSession = getStoredSession();
-    if (hasValidStoredSession(storedSession)) {
-        state.sessionToken = storedSession.sessionToken;
-        const user = storedSession.user;
-        state.selfId = user.id;
-        state.nickname = user.nickname;
-        state.firstName = user.firstName || '';
-        state.lastName = user.lastName || '';
-        state.userCode = user.code || '';
-        updateSelfIdentity();
-        loadLocalState();
-        setAuthLoading(true);
-        connectWebSocket({ type: 'resume', payload: { sessionToken: storedSession.sessionToken } });
-    }
 }
 
 initApp();
