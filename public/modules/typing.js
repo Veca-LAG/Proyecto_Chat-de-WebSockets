@@ -3,13 +3,30 @@ let typingTimeout = null;
 let currentlyTyping = false;
 
 /**
- * Configura el evento keyup para enviar estado escribiendo con debounce.
+ * Configura el evento de escritura para enviar estado escribiendo con debounce.
+ * Usa input para funcionar también al pegar texto y en teclados móviles.
  * @param {object} options Opciones del indicador.
  * @param {HTMLInputElement} options.input Campo de texto.
  * @param {(isTyping:boolean) => void} options.sendTyping Función para avisar al servidor.
+ * @param {() => boolean} [options.canSendTyping] Valida si el chat activo permite enviar typing.
  */
-export function setupTypingEvents({ input, sendTyping }) {
-    input.addEventListener('keyup', () => {
+export function setupTypingEvents({ input, sendTyping, canSendTyping = () => true }) {
+    const notifyStop = () => {
+        window.clearTimeout(typingTimeout);
+        if (currentlyTyping) {
+            currentlyTyping = false;
+            sendTyping(false);
+        }
+    };
+
+    input.addEventListener('input', () => {
+        const hasText = input.value.trim().length > 0;
+
+        if (input.disabled || !canSendTyping() || !hasText) {
+            notifyStop();
+            return;
+        }
+
         if (!currentlyTyping) {
             currentlyTyping = true;
             sendTyping(true);
@@ -21,21 +38,28 @@ export function setupTypingEvents({ input, sendTyping }) {
             sendTyping(false);
         }, TYPING_DEBOUNCE_MS);
     });
+
+    input.addEventListener('blur', notifyStop);
 }
 
 /**
  * Muestra u oculta el indicador de usuarios escribiendo.
  * @param {HTMLElement} indicator Contenedor del indicador.
- * @param {{fromId?:string,nickname?:string,isTyping?:boolean}} payload Datos recibidos.
+ * @param {{fromId?:string,nickname?:string,isTyping?:boolean,chatType?:string}} payload Datos recibidos.
  * @param {string|null} selfId ID del usuario actual.
  */
 export function handleTypingStatus(indicator, payload, selfId) {
-    if (!payload || payload.fromId === selfId) {
+    if (!indicator || !payload) {
+        return;
+    }
+
+    if (selfId && payload.fromId === selfId) {
         return;
     }
 
     if (payload.isTyping) {
-        indicator.textContent = `📝 ${payload.nickname} está escribiendo...`;
+        const name = payload.nickname || 'Alguien';
+        indicator.textContent = `📝 ${name} está escribiendo...`;
         return;
     }
 
@@ -47,7 +71,9 @@ export function handleTypingStatus(indicator, payload, selfId) {
  * @param {HTMLElement} indicator Contenedor del indicador.
  */
 export function clearTypingIndicator(indicator) {
-    indicator.textContent = '';
+    if (indicator) {
+        indicator.textContent = '';
+    }
 }
 
 /**
@@ -56,6 +82,8 @@ export function clearTypingIndicator(indicator) {
  */
 export function stopTyping(sendTyping) {
     window.clearTimeout(typingTimeout);
-    currentlyTyping = false;
-    sendTyping(false);
+    if (currentlyTyping) {
+        currentlyTyping = false;
+        sendTyping(false);
+    }
 }

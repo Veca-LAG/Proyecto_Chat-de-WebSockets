@@ -619,8 +619,18 @@ function handleLogin(ws, payload) {
     const password = String(payload.password || '');
     const user = findUserByNickname(nickname);
 
-    if (!user || !verifyPassword(password, user)) {
-        sendJson(ws, { type: 'auth_error', payload: { text: 'Nickname o contraseña incorrectos.' }, timestamp: new Date().toISOString() });
+    if (!nickname || !password) {
+        sendJson(ws, { type: 'auth_error', payload: { text: 'Ingresa nickname y contraseña.' }, timestamp: new Date().toISOString() });
+        return;
+    }
+
+    if (!user) {
+        sendJson(ws, { type: 'auth_error', payload: { text: 'No existe una cuenta registrada con ese nickname.' }, timestamp: new Date().toISOString() });
+        return;
+    }
+
+    if (!verifyPassword(password, user)) {
+        sendJson(ws, { type: 'auth_error', payload: { text: 'La contraseña es incorrecta.' }, timestamp: new Date().toISOString() });
         return;
     }
 
@@ -638,8 +648,7 @@ function handleResume(ws, payload) {
     const user = findUserBySessionToken(sessionToken);
 
     if (!user) {
-        sendJson(ws, { 
-            type: 'auth_error', payload: { text: 'La sesión expiró. Inicia sesión nuevamente.' }, timestamp: new Date().toISOString() });
+        sendJson(ws, { type: 'auth_error', payload: { text: 'La sesión expiró. Inicia sesión nuevamente.' }, timestamp: new Date().toISOString() });
         return;
     }
 
@@ -651,16 +660,10 @@ function handleResume(ws, payload) {
  * @param {WebSocket} ws Cliente solicitante.
  * @param {object} payload Datos de sesión.
  */
-function handleLogout(ws, payload = {}) {
-    if (payload.sessionToken) {
-        removeSession(payload.sessionToken);
-    }
+function handleLogout(ws, payload) {
+    removeSession(payload.sessionToken);
     detachSocket(ws, true);
-    sendJson(ws, { 
-        type: 'logout_success', 
-        payload: {}, 
-        timestamp: new Date().toISOString() 
-    });
+    sendJson(ws, { type: 'logout_success', payload: {}, timestamp: new Date().toISOString() });
 }
 
 /**
@@ -923,9 +926,12 @@ function handleGroupMessage(ws, payload, timestamp) {
 }
 
 /**
- * Reenvía el indicador de escritura a todos menos al socket emisor.
+ * Reenvía el indicador de escritura según la conversación activa.
+ * Global: se envía a todos menos al emisor.
+ * Privado: se envía solo al destinatario.
+ * Grupo: se envía solo a los miembros del grupo, excepto al emisor.
  * @param {WebSocket} ws Cliente emisor.
- * @param {{isTyping:boolean}} payload Estado de escritura.
+ * @param {{isTyping:boolean,chatType?:string,targetId?:string,targetName?:string}} payload Estado de escritura.
  */
 function handleTyping(ws, payload) {
     const user = users.get(ws);
@@ -934,15 +940,47 @@ function handleTyping(ws, payload) {
         return;
     }
 
-    broadcast({
+    const chatType = ['global', 'private', 'group'].includes(payload.chatType)
+        ? payload.chatType
+        : 'global';
+    const targetId = sanitizeText(payload.targetId || '', 80);
+    const typingPayload = {
+        fromId: user.id,
+        nickname: user.nickname,
+        isTyping: Boolean(payload.isTyping),
+        chatType,
+        targetId: chatType === 'global' ? 'global' : targetId
+    };
+    const message = {
         type: 'typing_status',
-        payload: {
-            fromId: user.id,
-            nickname: user.nickname,
-            isTyping: Boolean(payload.isTyping)
-        },
+        payload: typingPayload,
         timestamp: new Date().toISOString()
-    }, ws);
+    };
+
+    if (chatType === 'global') {
+        broadcast(message, ws);
+        return;
+    }
+
+    if (chatType === 'private') {
+        const targetUser = findUserById(targetId);
+        if (!targetUser || targetUser.id === user.id) {
+            return;
+        }
+        sendToUser(targetUser.id, message);
+        return;
+    }
+
+    if (chatType === 'group') {
+        const group = db.groups.find((item) => item.id === targetId);
+        if (!group || !Array.isArray(group.memberIds) || !group.memberIds.includes(user.id)) {
+            return;
+        }
+
+        group.memberIds
+            .filter((memberId) => memberId !== user.id)
+            .forEach((memberId) => sendToUser(memberId, message));
+    }
 }
 
 /**

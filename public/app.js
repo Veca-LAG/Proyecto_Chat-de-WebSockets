@@ -19,7 +19,7 @@ const SECTION_CONFIG = {
     private: {
         title: 'Privados',
         subtitle: '',
-        avatar: '✉️'
+        avatar: '👤'
     },
     communities: {
         title: 'Comunidades',
@@ -44,16 +44,24 @@ const state = {
     activeSection: 'global',
     activeChat: null,
     reconnectAttempts: 0,
-    shouldReconnect: false,
-
-    // NUEVO
-    authMode: 'login'
+    shouldReconnect: false
 };
 
 const elements = {
     loginModal: document.getElementById('loginModal'),
     loginForm: document.getElementById('loginForm'),
+    loginModeButton: document.getElementById('loginModeButton'),
+    registerModeButton: document.getElementById('registerModeButton'),
+    registerFields: document.getElementById('registerFields'),
+    passwordConfirmField: document.getElementById('passwordConfirmField'),
+    firstNameInput: document.getElementById('firstNameInput'),
+    lastNameInput: document.getElementById('lastNameInput'),
     nicknameInput: document.getElementById('nicknameInput'),
+    passwordInput: document.getElementById('passwordInput'),
+    passwordConfirmInput: document.getElementById('passwordConfirmInput'),
+    authSubmitButton: document.getElementById('authSubmitButton'),
+    authHelperText: document.getElementById('authHelperText'),
+    loginDescription: document.getElementById('loginDescription'),
     loginError: document.getElementById('loginError'),
     connectionStatus: document.getElementById('connectionStatus'),
     chatTitle: document.getElementById('chatTitle'),
@@ -98,7 +106,8 @@ const elements = {
     closeConversationSearch: document.getElementById('closeConversationSearch'),
     chatMenuButton: document.getElementById('chatMenuButton'),
     chatMenu: document.getElementById('chatMenu'),
-    deleteConversationButton: document.getElementById('deleteConversationButton')
+    deleteConversationButton: document.getElementById('deleteConversationButton'),
+    typingIndicator: document.getElementById('typingIndicator')
 };
 
 /**
@@ -112,101 +121,6 @@ function sanitizeInput(value, maxLength) {
         .replace(/<[^>]*>?/gm, '')
         .trim()
         .slice(0, maxLength);
-}
-/**
- * Cambia entre modo login y register.
- * @param {'login' | 'register'} mode
- */
-function setAuthMode(mode) {
-
-    state.authMode = mode;
-
-    const isLogin = mode === 'login';
-
-    // Tabs activas
-    elements.loginModeButton.classList.toggle(
-        'auth-tab-active',
-        isLogin
-    );
-
-    elements.registerModeButton.classList.toggle(
-        'auth-tab-active',
-        !isLogin
-    );
-
-    // Accesibilidad
-    elements.loginModeButton.setAttribute(
-        'aria-selected',
-        String(isLogin)
-    );
-
-    elements.registerModeButton.setAttribute(
-        'aria-selected',
-        String(!isLogin)
-    );
-
-    // Mostrar u ocultar campos
-    elements.registerFields.hidden = isLogin;
-
-    // Required dinámico
-    elements.firstNameInput.required = !isLogin;
-    elements.lastNameInput.required = !isLogin;
-
-    // Cambiar autocomplete
-    elements.passwordInput.autocomplete = isLogin
-        ? 'current-password'
-        : 'new-password';
-
-    // Cambiar texto del botón
-    elements.authSubmitButton.textContent = isLogin
-        ? 'Entrar al chat'
-        : 'Registrarse';
-
-    // Texto auxiliar
-    elements.authHelperText.textContent = isLogin
-        ? 'Tu sesión se guardará en este navegador.'
-        : 'Crea una cuenta para comenzar a usar el chat.';
-
-    // Limpiar errores
-    elements.loginError.textContent = '';
-}
-/**
- * Obtiene usuarios guardados.
- * @returns {Array}
- */
-function getStoredUsers() {
-
-    const users = localStorage.getItem('chat_users');
-
-    return users
-        ? JSON.parse(users)
-        : [];
-}
-
-/**
- * Guarda usuarios.
- * @param {Array} users
- */
-function saveStoredUsers(users) {
-
-    localStorage.setItem(
-        'chat_users',
-        JSON.stringify(users)
-    );
-}
-
-/**
- * Busca usuario por nickname.
- * @param {string} nickname
- * @returns {Object|null}
- */
-function findUserByNickname(nickname) {
-
-    const users = getStoredUsers();
-
-    return users.find(
-        user => user.nickname === nickname
-    ) || null;
 }
 
 /**
@@ -277,6 +191,7 @@ function getWebSocketUrl() {
  * @param {object} data Mensaje con type, payload y timestamp.
  * @returns {boolean} True si se envió correctamente.
  */
+
 function sendJson(data) {
     if (!state.socket || state.socket.readyState !== WebSocket.OPEN) {
         return false;
@@ -284,6 +199,101 @@ function sendJson(data) {
 
     state.socket.send(JSON.stringify(data));
     return true;
+}
+
+/**
+ * Obtiene el contexto de escritura de la conversación activa.
+ * Permite que el servidor sepa si el usuario escribe en Foro Global,
+ * Privados o Comunidades.
+ * @returns {{chatType:string,targetId:string,targetName?:string}|null} Contexto activo.
+ */
+function getActiveTypingContext() {
+    if (!state.selfId || !state.activeChat) {
+        return null;
+    }
+
+    if (state.activeChat.type === 'global') {
+        return {
+            chatType: 'global',
+            targetId: 'global',
+            targetName: 'Foro Global'
+        };
+    }
+
+    if (state.activeChat.type === 'private') {
+        const activeUser = getActiveUserByNickname(state.activeChat.name);
+        if (!activeUser || activeUser.id === state.selfId) {
+            return null;
+        }
+
+        return {
+            chatType: 'private',
+            targetId: activeUser.id,
+            targetName: activeUser.nickname
+        };
+    }
+
+    if (state.activeChat.type === 'group') {
+        return {
+            chatType: 'group',
+            targetId: state.activeChat.id,
+            targetName: state.activeChat.name
+        };
+    }
+
+    return null;
+}
+
+/**
+ * Envía el estado de escritura con el contexto de la conversación activa.
+ * @param {boolean} isTyping Indica si el usuario está escribiendo.
+ * @returns {boolean} True si se pudo enviar.
+ */
+function sendActiveTypingStatus(isTyping) {
+    const context = getActiveTypingContext();
+    if (!context) {
+        return false;
+    }
+
+    return sendJson({
+        type: 'typing',
+        payload: {
+            isTyping,
+            ...context
+        },
+        timestamp: new Date().toISOString()
+    });
+}
+
+/**
+ * Verifica si un evento de escritura pertenece al chat que el usuario está viendo.
+ * @param {object} payload Datos recibidos desde el servidor.
+ * @returns {boolean} True si debe mostrarse en la conversación actual.
+ */
+function isTypingStatusForActiveChat(payload) {
+    if (!payload || !state.activeChat) {
+        return false;
+    }
+
+    if (state.selfId && payload.fromId === state.selfId) {
+        return false;
+    }
+
+    if (state.activeChat.type === 'global') {
+        return payload.chatType === 'global';
+    }
+
+    if (state.activeChat.type === 'private') {
+        const sameUserById = Boolean(state.activeChat.id && payload.fromId === state.activeChat.id);
+        const sameUserByName = payload.nickname?.toLowerCase?.() === state.activeChat.name?.toLowerCase?.();
+        return payload.chatType === 'private' && (sameUserById || sameUserByName);
+    }
+
+    if (state.activeChat.type === 'group') {
+        return payload.chatType === 'group' && payload.targetId === state.activeChat.id;
+    }
+
+    return false;
 }
 
 /**
@@ -296,12 +306,24 @@ function setAuthMode(mode) {
 
     elements.registerFields.hidden = !isRegister;
     elements.passwordConfirmField.hidden = !isRegister;
+    elements.registerFields.classList.toggle('hidden', !isRegister);
+    elements.passwordConfirmField.classList.toggle('hidden', !isRegister);
+    elements.firstNameInput.required = isRegister;
+    elements.lastNameInput.required = isRegister;
+    elements.passwordConfirmInput.required = isRegister;
+
+    if (!isRegister) {
+        elements.firstNameInput.value = '';
+        elements.lastNameInput.value = '';
+        elements.passwordConfirmInput.value = '';
+    }
+
     elements.loginModeButton.classList.toggle('auth-tab-active', !isRegister);
     elements.registerModeButton.classList.toggle('auth-tab-active', isRegister);
     elements.loginModeButton.setAttribute('aria-selected', String(!isRegister));
     elements.registerModeButton.setAttribute('aria-selected', String(isRegister));
     elements.passwordInput.autocomplete = isRegister ? 'new-password' : 'current-password';
-    elements.passwordConfirmInput.required = isRegister;
+    elements.passwordInput.placeholder = isRegister ? 'Mínimo 6 caracteres' : 'Ingresa tu contraseña';
     elements.authSubmitButton.textContent = isRegister ? 'Crear cuenta' : 'Entrar al chat';
     elements.loginDescription.textContent = isRegister
         ? 'Crea tu cuenta para usar el chat desde varios dispositivos.'
@@ -595,7 +617,7 @@ function handleServerMessage(rawMessage) {
             renderSystemMessage(payload.text || 'Ocurrió un error.', timestamp);
             break;
         case 'typing_status':
-            if (state.activeChat?.type === 'global' || state.activeChat?.type === 'private') {
+            if (isTypingStatusForActiveChat(payload)) {
                 handleTypingStatus(elements.typingIndicator, payload, state.selfId);
             }
             break;
@@ -899,6 +921,8 @@ function loadPrivateConversationsFromServer(conversations) {
  * Actualiza encabezado y panel derecho para la conversación activa.
  */
 function renderActiveChatShell() {
+    clearTypingIndicator(elements.typingIndicator);
+
     if (!state.activeChat) {
         const config = SECTION_CONFIG[state.activeSection];
         elements.chatAvatar.textContent = config.avatar;
@@ -1274,30 +1298,34 @@ function handleMessageSubmit(event) {
 
     elements.messageInput.value = '';
     clearTypingIndicator(elements.typingIndicator);
-    sendJson({ type: 'typing', payload: { isTyping: false }, timestamp: new Date().toISOString() });
+    sendActiveTypingStatus(false);
 }
 
 /**
- * Valida nickname e inicia sesión WebSocket.
+ * Valida login/registro e inicia la autenticación WebSocket.
  * @param {SubmitEvent} event Evento submit.
  */
 function handleLoginSubmit(event) {
-
     event.preventDefault();
 
-    const nickname = sanitizeInput(elements.nicknameInput.value, MAX_NICKNAME_LENGTH);
-    if (!nickname) {
-        elements.loginError.textContent = 'El nickname no puede estar vacío.';
+    const values = getAuthFormValues();
+    const validation = state.authMode === 'register'
+        ? validateRegister(values)
+        : validateLogin(values);
+
+    if (!validation.valid) {
+        elements.loginError.textContent = validation.error;
         return;
     }
 
     elements.loginError.textContent = '';
-    state.nickname = nickname;
-    loadLocalState();
-    updateSelfIdentity();
-    renderChatList();
-    initNotify(); 
-    connectWebSocket();
+    setAuthLoading(true);
+    initNotify();
+
+    connectWebSocket({
+        type: state.authMode === 'register' ? 'register' : 'login',
+        payload: validation.data
+    });
 }
 
 /**
@@ -1682,11 +1710,8 @@ function initApp() {
 
     setupTypingEvents({
         input: elements.messageInput,
-        sendTyping: (isTyping) => sendJson({
-            type: 'typing',
-            payload: { isTyping },
-            timestamp: new Date().toISOString()
-        })
+        sendTyping: sendActiveTypingStatus,
+        canSendTyping: () => Boolean(getActiveTypingContext())
     });
 
     elements.loginModeButton.addEventListener('click', () => setAuthMode('login'));
@@ -1698,19 +1723,6 @@ function initApp() {
         window.location.reload();
     });
     elements.loginForm.addEventListener('submit', handleLoginSubmit);
-    elements.loginModeButton.addEventListener(
-    'click',
-    () => {
-        setAuthMode('login');
-    }
-);
-
-elements.registerModeButton.addEventListener(
-    'click',
-    () => {
-        setAuthMode('register');
-    }
-);
     elements.messageForm.addEventListener('submit', handleMessageSubmit);
     elements.listMenuButton.addEventListener('click', toggleListMenu);
     elements.chatMenuButton.addEventListener('click', toggleChatMenu);
@@ -1742,6 +1754,22 @@ elements.registerModeButton.addEventListener(
             setTimeout(() => { copied.style.display = 'none'; }, 2000);
         });
     });
+
+    setAuthMode('login');
+    const storedSession = getStoredSession();
+    if (hasValidStoredSession(storedSession)) {
+        state.sessionToken = storedSession.sessionToken;
+        const user = storedSession.user;
+        state.selfId = user.id;
+        state.nickname = user.nickname;
+        state.firstName = user.firstName || '';
+        state.lastName = user.lastName || '';
+        state.userCode = user.code || '';
+        updateSelfIdentity();
+        loadLocalState();
+        setAuthLoading(true);
+        connectWebSocket({ type: 'resume', payload: { sessionToken: storedSession.sessionToken } });
+    }
 }
 
 initApp();
