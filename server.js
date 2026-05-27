@@ -615,7 +615,11 @@ function handleLogin(ws, payload) {
     const user = findUserByNickname(nickname);
 
     if (!user || !verifyPassword(password, user)) {
-        sendJson(ws, { type: 'auth_error', payload: { text: 'Nickname o contraseña incorrectos.' }, timestamp: new Date().toISOString() });
+        sendJson(ws, { 
+            type: 'auth_error', 
+            payload: { text: 'Nickname o contraseña incorrectos.' }, 
+            timestamp: new Date().toISOString() 
+        });
         return;
     }
 
@@ -633,7 +637,8 @@ function handleResume(ws, payload) {
     const user = findUserBySessionToken(sessionToken);
 
     if (!user) {
-        sendJson(ws, { type: 'auth_error', payload: { text: 'La sesión expiró. Inicia sesión nuevamente.' }, timestamp: new Date().toISOString() });
+        sendJson(ws, { 
+            type: 'auth_error', payload: { text: 'La sesión expiró. Inicia sesión nuevamente.' }, timestamp: new Date().toISOString() });
         return;
     }
 
@@ -645,10 +650,16 @@ function handleResume(ws, payload) {
  * @param {WebSocket} ws Cliente solicitante.
  * @param {object} payload Datos de sesión.
  */
-function handleLogout(ws, payload) {
-    removeSession(payload.sessionToken);
+function handleLogout(ws, payload = {}) {
+    if (payload.sessionToken) {
+        removeSession(payload.sessionToken);
+    }
     detachSocket(ws, true);
-    sendJson(ws, { type: 'logout_success', payload: {}, timestamp: new Date().toISOString() });
+    sendJson(ws, { 
+        type: 'logout_success', 
+        payload: {}, 
+        timestamp: new Date().toISOString() 
+    });
 }
 
 /**
