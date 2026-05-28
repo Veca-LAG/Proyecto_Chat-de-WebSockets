@@ -1243,3 +1243,45 @@ input:disabled {
         font-size: 0.88rem;
     }
 }
+/* ─────────────────────────────────────────────────────────────
+   REQ-D-09 — Animación suave al aparecer mensajes
+   ───────────────────────────────────────────────────────────── */
+
+@keyframes show-message {
+    from {
+        opacity: 0;
+        transform: translateY(25px) scale(0.92);
+    }
+
+    to {
+        opacity: 1;
+        transform: translateY(0) scale(1);
+    }
+}
+
+/* Animación principal de entrada */
+.message {
+    animation: show-message 0.45s ease forwards;
+}
+
+/* Mensajes históricos con leve transparencia */
+.message-historical {
+    opacity: 0.76;
+}
+/* ── Badge de mensajes no leídos ─────────────────────────── */
+.unread-badge {
+    display: grid;
+    place-items: center;
+    min-width: 20px;
+    height: 20px;
+    padding: 0 5px;
+    margin-left: auto;
+    flex-shrink: 0;
+    color: #ffffff;
+    background: var(--color-danger);
+    border-radius: 999px;
+    font-size: 0.72rem;
+    font-weight: 900;
+    line-height: 1;
+    animation: show-message 0.2s ease;
+}

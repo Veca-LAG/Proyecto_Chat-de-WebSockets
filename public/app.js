@@ -44,7 +44,8 @@ const state = {
     activeSection: 'global',
     activeChat: null,
     reconnectAttempts: 0,
-    shouldReconnect: false
+    shouldReconnect: false,
+    unreadCounts: {} 
 };
 
 const elements = {
@@ -606,6 +607,7 @@ function handleServerMessage(rawMessage) {
         case 'private_msg':
             receivePrivateMessage(payload, timestamp);
             if (payload.fromId !== state.selfId) playNotify();
+            renderNavigation();
             break;
         case 'group_msg':
             receiveGroupMessage(payload, timestamp);
@@ -637,8 +639,13 @@ function handleServerMessage(rawMessage) {
  * @param {boolean} openDefault Indica si debe abrir automáticamente el chat principal de la sección.
  */
 function setActiveSection(section, openDefault = true) {
-    state.activeSection = section;
 
+    state.activeSection = section;
+    if (section === 'private') {
+        Object.keys(state.unreadCounts)
+            .filter(key => key.startsWith('private:'))
+            .forEach(key => delete state.unreadCounts[key]);
+    }
     if (section === 'global' && openDefault) {
         state.activeChat = { type: 'global', id: 'global', name: 'Foro Global' };
     } else {
@@ -658,12 +665,29 @@ function setActiveSection(section, openDefault = true) {
  * Marca visualmente el botón de navegación activo.
  */
 function renderNavigation() {
-    const navButtons = [elements.navGlobal, elements.navPrivate, elements.navCommunities];
+        // ── Badge Privados: suma de todos los contactos ──
+    const privateUnread = Object.entries(state.unreadCounts)
+        .filter(([key]) => key.startsWith('private:'))
+        .reduce((sum, [, count]) => sum + count, 0);
 
+    let privateBadge = elements.navPrivate.querySelector('.rail-unread-badge');
+    if (privateUnread > 0 && state.activeSection !== 'private') {
+        if (!privateBadge) {
+            privateBadge = document.createElement('span');
+            privateBadge.className = 'rail-unread-badge';
+            elements.navPrivate.appendChild(privateBadge);
+        }
+        privateBadge.textContent = privateUnread > 99 ? '99+' : String(privateUnread);
+    } else if (privateBadge) {
+        privateBadge.remove();
+    }
+    const navButtons = [elements.navGlobal, elements.navPrivate, elements.navCommunities];
+    
     navButtons.forEach((button) => {
         const isActive = button.dataset.section === state.activeSection;
         button.classList.toggle('rail-item-active', isActive);
     });
+    
 }
 
 /**
@@ -714,6 +738,7 @@ function renderGlobalUserList() {
             subtitle: isSelf ? 'Tu sesión activa' : 'En línea · clic para privado',
             active: state.activeChat?.type === 'private' && state.activeChat?.name === user.nickname,
             disabled: isSelf,
+            unread: state.unreadCounts[`private:${user.nickname}`] || 0,
             onClick: () => selectPrivateByUser(user)
         });
         elements.chatList.appendChild(item);
@@ -736,6 +761,7 @@ function renderPrivateConversationList() {
             title: conversation.nickname,
             subtitle: lastMessage || (activeUser ? 'En línea' : 'Sin mensajes recientes'),
             active: state.activeChat?.type === 'private' && state.activeChat?.name === conversation.nickname,
+            unread: state.unreadCounts[`private:${conversation.nickname}`] || 0,
             onClick: () => selectPrivateConversation(conversation.nickname)
         });
         elements.chatList.appendChild(item);
@@ -755,6 +781,7 @@ function renderCommunityList() {
             title: group.name,
             subtitle: lastMessage,
             active: state.activeChat?.type === 'group' && state.activeChat?.id === group.id,
+            unread: state.unreadCounts[`group:${group.id}`] || 0,  // ← AGREGAR
             onClick: () => selectGroup(group)
         });
         elements.chatList.appendChild(item);
@@ -766,7 +793,7 @@ function renderCommunityList() {
  * @param {object} options Configuración del ítem.
  * @returns {HTMLLIElement} Elemento de lista.
  */
-function createListItem({ avatar, title, subtitle, active = false, disabled = false, onClick }) {
+function createListItem({ avatar, title, subtitle, active = false, disabled = false, onClick, unread = 0  }) {
     const listItem = document.createElement('li');
     const button = document.createElement('button');
     button.type = 'button';
@@ -787,7 +814,15 @@ function createListItem({ avatar, title, subtitle, active = false, disabled = fa
     subtitleElement.textContent = subtitle || '';
 
     textWrapper.append(titleElement, subtitleElement);
-    button.append(avatarElement, textWrapper);
+    if (unread > 0) {
+        const badge = document.createElement('span');
+        badge.className = 'unread-badge';
+        badge.textContent = unread > 99 ? '99+' : String(unread);
+        badge.setAttribute('aria-label', `${unread} mensajes sin leer`);
+        button.append(avatarElement, textWrapper, badge);
+    } else {
+        button.append(avatarElement, textWrapper);
+    }
 
     if (!disabled && typeof onClick === 'function') {
         button.addEventListener('click', onClick);
@@ -815,6 +850,7 @@ function selectGlobalChat() {
  * @param {{id:string,nickname:string}} user Usuario destino.
  */
 function selectPrivateByUser(user) {
+    delete state.unreadCounts[`private:${user.nickname}`];  // ← AGREGAR
     ensurePrivateConversation(user.nickname);
     state.activeSection = 'private';
     state.activeChat = { type: 'private', id: user.id, name: user.nickname };
@@ -832,6 +868,7 @@ function selectPrivateByUser(user) {
  * @param {string} nickname Nickname del contacto.
  */
 function selectPrivateConversation(nickname) {
+    delete state.unreadCounts[`private:${nickname}`];
     const activeUser = getActiveUserByNickname(nickname);
     state.activeChat = {
         type: 'private',
@@ -850,6 +887,7 @@ function selectPrivateConversation(nickname) {
  * @param {{id:string,name:string}} group Grupo seleccionado.
  */
 function selectGroup(group) {
+    delete state.unreadCounts[`group:${group.id}`];  // ← AGREGAR
     state.activeChat = { type: 'group', id: group.id, name: group.name };
     renderChatList();
     renderActiveChatShell();
@@ -1179,9 +1217,18 @@ function receivePrivateMessage(payload, timestamp) {
     }
     conversation.updatedAt = timestamp || new Date().toISOString();
     saveLocalState();
-    renderChatList();
 
-    if (state.activeChat?.type === 'private' && state.activeChat.name === counterpartNickname) {
+    // ── Contar no leído si el chat no está activo y el mensaje es ajeno ──
+    const isActiveChat = state.activeChat?.type === 'private' && state.activeChat.name === counterpartNickname;
+    if (!isActiveChat && !isOwn) {
+        const key = `private:${counterpartNickname}`;
+        state.unreadCounts[key] = (state.unreadCounts[key] || 0) + 1;
+    }
+
+    renderChatList();
+    renderNavigation();
+
+    if (isActiveChat) {
         renderMessage(message);
     }
 }
@@ -1207,6 +1254,7 @@ function receiveGroupMessage(payload, timestamp) {
     }
 
     renderChatList();
+    renderNavigation();
 
     if (state.activeChat?.type === 'group' && state.activeChat.id === payload.groupId) {
         renderMessage(message);
