@@ -10,6 +10,39 @@
       "passwordHash": "e669fd4fafbd50b334f3047590c46c221beffb909c5456fcfb36389f71048e768bf99124bb70d9f20dfc7653299737eee8995c066774353b74cd4c91fa946eb0",
       "createdAt": "2026-05-27T22:16:53.669Z",
       "updatedAt": "2026-05-27T22:16:53.669Z"
+    },
+    {
+      "id": "a06b4d1b-a07e-4901-a935-41cec15b5b35",
+      "code": "USR-793491",
+      "firstName": "Nelida",
+      "lastName": "Lopez",
+      "nickname": "Nely",
+      "passwordSalt": "8ed2a40d375e23da049a4cba9959955a",
+      "passwordHash": "81e885e84103c0ddd070842d63359f8f621d5855af0a936728328e19a5e182ee4cec15002ea429575584071d0f53c81366900092d358ee4ab17444b947a74329",
+      "createdAt": "2026-05-28T16:33:08.696Z",
+      "updatedAt": "2026-05-28T16:33:08.696Z"
+    },
+    {
+      "id": "d07b6fd5-c56d-4e49-a578-b61f791e0f60",
+      "code": "USR-145096",
+      "firstName": "Mane isabela",
+      "lastName": "velasco naranjo",
+      "nickname": "veca",
+      "passwordSalt": "f39774d8e87cbd78888b39b5b98355bd",
+      "passwordHash": "7b3d8b962bdeabbd8f7303f5f7d38dad5bfc8046cab2d8a4815f91c291be4c4d3cb1536bbd1d4ef6c530f80119ee404de4910e155abe1f1466bbc13cd1deaaa0",
+      "createdAt": "2026-05-28T16:36:16.564Z",
+      "updatedAt": "2026-05-28T16:36:16.564Z"
+    },
+    {
+      "id": "a40cfe8b-5a10-48e6-81ab-2463aa17e204",
+      "code": "USR-954834",
+      "firstName": "Heriberto",
+      "lastName": "Gomez",
+      "nickname": "Herimaster75",
+      "passwordSalt": "231dce6fb3648a96ac1fab244f8f23e6",
+      "passwordHash": "8a948aab9e66ac13b83e182da8ce6882f4bafbfb56aca745611d324e4597d52fb4bcd51761298c4d6ac3736e91d315a756712e772912dfb22f9c2bf65aab53d2",
+      "createdAt": "2026-05-28T16:37:23.364Z",
+      "updatedAt": "2026-05-28T16:37:23.364Z"
     }
   ],
   "sessions": [
@@ -18,6 +51,24 @@
       "userId": "e891c255-2030-474d-99db-08c6b11b9c1c",
       "createdAt": "2026-05-27T22:16:53.670Z",
       "expiresAt": "2026-06-26T22:16:53.670Z"
+    },
+    {
+      "token": "74252de84477a79f34773a9d4cf6035f1a4e7a5076a939f0b4f060035105442d",
+      "userId": "a06b4d1b-a07e-4901-a935-41cec15b5b35",
+      "createdAt": "2026-05-28T16:34:14.932Z",
+      "expiresAt": "2026-06-27T16:34:14.932Z"
+    },
+    {
+      "token": "70aade8533a4c6d4dba8332c3b70762d6a8ef0fef56eea0e7f340e56e878d6c6",
+      "userId": "d07b6fd5-c56d-4e49-a578-b61f791e0f60",
+      "createdAt": "2026-05-28T16:36:16.565Z",
+      "expiresAt": "2026-06-27T16:36:16.565Z"
+    },
+    {
+      "token": "16647e8d53c8b8b1eab583385dcf70154b78a294d33c20406023f5a13f08c3c5",
+      "userId": "a40cfe8b-5a10-48e6-81ab-2463aa17e204",
+      "createdAt": "2026-05-28T16:37:23.365Z",
+      "expiresAt": "2026-06-27T16:37:23.365Z"
     }
   ],
   "globalHistory": [
@@ -27,8 +78,137 @@
       "from": "Ab",
       "text": "🎉",
       "timestamp": "2026-05-27T22:17:14.419Z"
+    },
+    {
+      "id": "32552cc7-bd01-412b-96e7-05a0230ccf13",
+      "fromId": "d07b6fd5-c56d-4e49-a578-b61f791e0f60",
+      "from": "veca",
+      "text": "hola",
+      "timestamp": "2026-05-28T16:36:23.634Z"
+    },
+    {
+      "id": "06403350-b616-4778-873e-25e14393e287",
+      "fromId": "d07b6fd5-c56d-4e49-a578-b61f791e0f60",
+      "from": "veca",
+      "text": "La cebolla😎",
+      "timestamp": "2026-05-28T16:37:17.786Z"
+    },
+    {
+      "id": "3c21e6ef-e3dc-4be3-a490-6dec737f3f2f",
+      "fromId": "a40cfe8b-5a10-48e6-81ab-2463aa17e204",
+      "from": "Herimaster75",
+      "text": "Como estan???",
+      "timestamp": "2026-05-28T16:39:15.826Z"
+    },
+    {
+      "id": "b843a8ff-ce5a-4244-9a27-5e3eb124fa8a",
+      "fromId": "a40cfe8b-5a10-48e6-81ab-2463aa17e204",
+      "from": "Herimaster75",
+      "text": "💻",
+      "timestamp": "2026-05-28T16:39:20.036Z"
+    },
+    {
+      "id": "47ef00e8-d2c3-43a7-b3ea-8637d947b4cd",
+      "fromId": "a40cfe8b-5a10-48e6-81ab-2463aa17e204",
+      "from": "Herimaster75",
+      "text": "lore",
+      "timestamp": "2026-05-28T16:40:59.336Z"
+    },
+    {
+      "id": "ff86cd0d-af03-45d1-bded-d6a9552fd45a",
+      "fromId": "a40cfe8b-5a10-48e6-81ab-2463aa17e204",
+      "from": "Herimaster75",
+      "text": "imput",
+      "timestamp": "2026-05-28T16:41:02.079Z"
     }
   ],
-  "privateMessages": [],
-  "groups": []
+  "privateMessages": [
+    {
+      "id": "3356c189-d8f7-48e3-98e5-34df5c662738",
+      "fromId": "d07b6fd5-c56d-4e49-a578-b61f791e0f60",
+      "fromNickname": "veca",
+      "toId": "a40cfe8b-5a10-48e6-81ab-2463aa17e204",
+      "toNickname": "Herimaster75",
+      "text": "jajaja",
+      "timestamp": "2026-05-28T16:37:51.296Z"
+    },
+    {
+      "id": "11dd3a43-c6ff-419d-90d9-4c760e240563",
+      "fromId": "d07b6fd5-c56d-4e49-a578-b61f791e0f60",
+      "fromNickname": "veca",
+      "toId": "a40cfe8b-5a10-48e6-81ab-2463aa17e204",
+      "toNickname": "Herimaster75",
+      "text": "jshajd",
+      "timestamp": "2026-05-28T16:37:58.973Z"
+    },
+    {
+      "id": "9f3300b6-8aaf-4d2a-8316-24ebf9cc06b2",
+      "fromId": "a40cfe8b-5a10-48e6-81ab-2463aa17e204",
+      "fromNickname": "Herimaster75",
+      "toId": "d07b6fd5-c56d-4e49-a578-b61f791e0f60",
+      "toNickname": "veca",
+      "text": "holaaa",
+      "timestamp": "2026-05-28T16:38:03.289Z"
+    },
+    {
+      "id": "2171bed4-5035-4b72-81cc-e0a28f79d810",
+      "fromId": "a40cfe8b-5a10-48e6-81ab-2463aa17e204",
+      "fromNickname": "Herimaster75",
+      "toId": "d07b6fd5-c56d-4e49-a578-b61f791e0f60",
+      "toNickname": "veca",
+      "text": "jajaja",
+      "timestamp": "2026-05-28T16:38:04.242Z"
+    },
+    {
+      "id": "56897c83-70c2-4254-9516-b40a1e3737c9",
+      "fromId": "a40cfe8b-5a10-48e6-81ab-2463aa17e204",
+      "fromNickname": "Herimaster75",
+      "toId": "a06b4d1b-a07e-4901-a935-41cec15b5b35",
+      "toNickname": "Nely",
+      "text": "Holii",
+      "timestamp": "2026-05-28T16:38:14.920Z"
+    },
+    {
+      "id": "f3342417-b143-452f-92c1-9b304aa15d97",
+      "fromId": "a40cfe8b-5a10-48e6-81ab-2463aa17e204",
+      "fromNickname": "Herimaster75",
+      "toId": "d07b6fd5-c56d-4e49-a578-b61f791e0f60",
+      "toNickname": "veca",
+      "text": "como estas?",
+      "timestamp": "2026-05-28T16:38:45.520Z"
+    }
+  ],
+  "groups": [
+    {
+      "id": "ddc818b9-9287-4a89-8207-042f89f6ce5f",
+      "name": "kiki",
+      "createdBy": "d07b6fd5-c56d-4e49-a578-b61f791e0f60",
+      "createdAt": "2026-05-28T16:38:34.848Z",
+      "memberIds": [
+        "d07b6fd5-c56d-4e49-a578-b61f791e0f60",
+        "a06b4d1b-a07e-4901-a935-41cec15b5b35",
+        "a40cfe8b-5a10-48e6-81ab-2463aa17e204"
+      ],
+      "history": [
+        {
+          "id": "8db3310c-c8bf-4554-9bba-43b3f921e0b3",
+          "groupId": "ddc818b9-9287-4a89-8207-042f89f6ce5f",
+          "groupName": "kiki",
+          "fromId": "d07b6fd5-c56d-4e49-a578-b61f791e0f60",
+          "from": "veca",
+          "text": "hjkaks",
+          "timestamp": "2026-05-28T16:38:45.761Z"
+        },
+        {
+          "id": "473c7867-50bb-46be-b3be-22b2740d6ab3",
+          "groupId": "ddc818b9-9287-4a89-8207-042f89f6ce5f",
+          "groupName": "kiki",
+          "fromId": "d07b6fd5-c56d-4e49-a578-b61f791e0f60",
+          "from": "veca",
+          "text": "asadsa",
+          "timestamp": "2026-05-28T16:38:47.752Z"
+        }
+      ]
+    }
+  ]
 }

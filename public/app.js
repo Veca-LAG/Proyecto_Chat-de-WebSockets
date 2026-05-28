@@ -539,6 +539,9 @@ function handleServerMessage(rawMessage) {
             setAuthLoading(false);
             setAuthenticatedUser(payload.user, payload.sessionToken);
             elements.loginModal.classList.add('hidden');
+            // 🌐 FIJAR EL FORO GLOBAL COMO CHAT ACTIVO AL ENTRAR MANUALLY
+            state.activeSection = 'global';
+            state.activeChat = { type: 'global', id: 'global', name: 'Foro Global' };
             renderChatList();
             renderActiveChatShell();
             renderActiveChatMessages();
@@ -1805,7 +1808,7 @@ function initApp() {
 
     setAuthMode('login');
     const storedSession = getStoredSession();
-    if (hasValidStoredSession(storedSession)) {
+if (hasValidStoredSession(storedSession)) {
         state.sessionToken = storedSession.sessionToken;
         const user = storedSession.user;
         state.selfId = user.id;
@@ -1815,6 +1818,17 @@ function initApp() {
         state.userCode = user.code || '';
         updateSelfIdentity();
         loadLocalState();
+        
+        // 🌐 FORZAR FORO GLOBAL AUTOMÁTICAMENTE AL CARGAR LA SESIÓN
+        state.activeSection = 'global';
+        state.activeChat = { type: 'global', id: 'global', name: 'Foro Global' };
+        
+        // Ejecutar renders iniciales para que la interfaz no aparezca vacía
+        if (typeof renderNavigation === 'function') renderNavigation();
+        if (typeof renderChatList === 'function') renderChatList();
+        if (typeof renderActiveChatShell === 'function') renderActiveChatShell();
+        if (typeof updateComposerState === 'function') updateComposerState();
+
         setAuthLoading(true);
         connectWebSocket({ type: 'resume', payload: { sessionToken: storedSession.sessionToken } });
     }
