@@ -1285,3 +1285,25 @@ input:disabled {
     line-height: 1;
     animation: show-message 0.2s ease;
 }
+/* ── Badge de no leídos en el rail de navegación ────────── */
+.rail-item {
+    position: relative;
+}
+
+.rail-unread-badge {
+    position: absolute;
+    top: 6px;
+    right: 10px;
+    min-width: 18px;
+    height: 18px;
+    padding: 0 4px;
+    color: #ffffff;
+    background: var(--color-danger);
+    border-radius: 999px;
+    font-size: 0.68rem;
+    font-weight: 900;
+    line-height: 18px;
+    text-align: center;
+    pointer-events: none;
+    animation: show-message 0.2s ease;
+}
