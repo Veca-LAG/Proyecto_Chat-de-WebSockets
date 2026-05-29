@@ -65,28 +65,6 @@
       "passwordHash": "fd9eb9fc44196ff933543da1f2bb74bd73bbd36c5018c1d81a38fca476c67c7885f7457df227ba181f84960136a264ae33190fc67ed8617c06b3d5155e054e17",
       "createdAt": "2026-05-29T16:13:26.390Z",
       "updatedAt": "2026-05-29T16:13:26.390Z"
-    },
-    {
-      "id": "e4c14742-9ffd-473e-98e2-0a1d52e8b533",
-      "code": "USR-531130",
-      "firstName": "aa",
-      "lastName": "aa",
-      "nickname": "aa",
-      "passwordSalt": "74e7c680f0141eceed6f73f01a5e147c",
-      "passwordHash": "b9fa4fd52afbefefd8504e4ccf78a60d3864366db1ff0fae5b7c33438cdf10566f8f6006a349ae7d6ad0efd6c440fc9a895dc04a259005ead166cff30435fe76",
-      "createdAt": "2026-05-29T16:16:40.408Z",
-      "updatedAt": "2026-05-29T16:16:40.408Z"
-    },
-    {
-      "id": "26e31909-fe6c-4105-bad4-19b44362033c",
-      "code": "USR-193245",
-      "firstName": "bb",
-      "lastName": "bb",
-      "nickname": "bb",
-      "passwordSalt": "1fe9dd6d3fdfade39407076af7334d1e",
-      "passwordHash": "a26b96cc2e55200f2a6c617dc89c2c5862e937c08b7e34b64f4474d6e89582e000818a88e5f3566e60b33c98b54668d6b29a7b8e8ce655574eb204031f6a703e",
-      "createdAt": "2026-05-29T16:18:26.074Z",
-      "updatedAt": "2026-05-29T16:18:26.074Z"
     }
   ],
   "sessions": [
@@ -125,18 +103,6 @@
       "userId": "54bf187c-5a0a-4baa-93c8-df35b67c17f6",
       "createdAt": "2026-05-29T16:13:26.392Z",
       "expiresAt": "2026-06-28T16:13:26.392Z"
-    },
-    {
-      "token": "926c6d13cb8465261da12275b6d78ce66c75547958c0b0041d8419438cbecf1b",
-      "userId": "e4c14742-9ffd-473e-98e2-0a1d52e8b533",
-      "createdAt": "2026-05-29T16:16:40.414Z",
-      "expiresAt": "2026-06-28T16:16:40.414Z"
-    },
-    {
-      "token": "89c0090faabc59b7a158aac539f5ec01e1fe787c86a9c7edd47c893e1eec2a8e",
-      "userId": "e4c14742-9ffd-473e-98e2-0a1d52e8b533",
-      "createdAt": "2026-05-29T16:23:55.828Z",
-      "expiresAt": "2026-06-28T16:23:55.828Z"
     }
   ],
   "globalHistory": [
@@ -188,20 +154,6 @@
       "from": "Herimaster75",
       "text": "imput",
       "timestamp": "2026-05-28T16:41:02.079Z"
-    },
-    {
-      "id": "d0715b91-a724-41cf-af3e-3f33de7ba190",
-      "fromId": "26e31909-fe6c-4105-bad4-19b44362033c",
-      "from": "bb",
-      "text": "aa",
-      "timestamp": "2026-05-29T16:23:41.484Z"
-    },
-    {
-      "id": "0aff98b0-bab2-45b4-9996-7c1fe09c091e",
-      "fromId": "e4c14742-9ffd-473e-98e2-0a1d52e8b533",
-      "from": "aa",
-      "text": "aa",
-      "timestamp": "2026-05-29T16:24:02.164Z"
     }
   ],
   "privateMessages": [
@@ -260,13 +212,13 @@
       "timestamp": "2026-05-28T16:38:45.520Z"
     },
     {
-      "id": "36d1b9f9-2158-4aef-9e3a-1fcf6dfb401a",
-      "fromId": "26e31909-fe6c-4105-bad4-19b44362033c",
-      "fromNickname": "bb",
-      "toId": "e4c14742-9ffd-473e-98e2-0a1d52e8b533",
-      "toNickname": "aa",
-      "text": "aaa",
-      "timestamp": "2026-05-29T16:18:37.573Z"
+      "id": "dc557f2e-33be-4647-afd3-7ed99923cc47",
+      "fromId": "54bf187c-5a0a-4baa-93c8-df35b67c17f6",
+      "fromNickname": "Mary",
+      "toId": "82d9ac47-5af6-41db-9e4e-94d6e678bdcb",
+      "toNickname": "Nelly",
+      "text": "😊",
+      "timestamp": "2026-05-29T16:43:21.569Z"
     }
   ],
   "groups": [

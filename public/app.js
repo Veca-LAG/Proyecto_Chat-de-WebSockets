@@ -1113,13 +1113,18 @@ function renderActiveChatMessages() {
 }
 
 /**
- * Renderiza un mensaje del chat en el panel principal.
- * @param {{from?:string,fromId?:string,to?:string,text:string,timestamp?:string,kind?:string,direction?:string,historical?:boolean}} message Mensaje.
+ * Renderiza un mensaje del chat en el panel principal con soporte de edición/eliminación.
+ * @param {{id:string,from?:string,fromId?:string,text:string,timestamp?:string,kind?:string,historical?:boolean}} message Mensaje.
  */
 function renderMessage(message) {
     const messageElement = document.createElement('article');
     const isOwn = message.fromId && message.fromId === state.selfId;
     const messageKind = message.kind || 'global';
+
+    // Guardamos el ID del mensaje en el elemento DOM usando dataset
+    if (message.id) {
+        messageElement.dataset.messageId = message.id;
+    }
 
     messageElement.className = [
         'message',
@@ -1133,13 +1138,12 @@ function renderMessage(message) {
     metaElement.className = 'message-meta';
 
     const authorElement = document.createElement('strong');
-    authorElement.textContent = getMessageAuthorLabel(message, isOwn);
+    authorElement.textContent = isOwn ? 'Tú' : (message.nickname || message.from || 'Usuario');
 
     if (messageKind === 'private') {
         const badge = document.createElement('span');
         badge.className = 'message-private-badge';
         badge.textContent = '🔒';
-        badge.title = 'Mensaje privado';
         metaElement.appendChild(badge);
     }
 
@@ -1154,11 +1158,62 @@ function renderMessage(message) {
 
     metaElement.append(authorElement, timeElement);
     messageElement.append(metaElement, textElement);
+
+ // 🌟 NUEVO: Menú de tres puntitos en la esquina superior derecha (texto limpio)
+    if (isOwn && message.id) {
+        const menuContainer = document.createElement('div');
+        menuContainer.className = 'message-menu-container';
+
+        // El botón de los tres puntitos
+        const triggerBtn = document.createElement('button');
+        triggerBtn.type = 'button';
+        triggerBtn.className = 'message-menu-trigger';
+        triggerBtn.innerHTML = '⋮'; 
+        triggerBtn.title = 'Opciones';
+
+        // El menú flotante con las acciones
+        const dropdownMenu = document.createElement('div');
+        dropdownMenu.className = 'message-context-dropdown';
+
+        const editOption = document.createElement('button');
+        editOption.type = 'button';
+        editOption.className = 'dropdown-item-btn';
+        editOption.textContent = 'Editar';
+        editOption.addEventListener('click', (e) => {
+            e.stopPropagation();
+            dropdownMenu.classList.remove('is-open');
+            startEditMessage(message.id, textElement);
+        });
+
+        const deleteOption = document.createElement('button');
+        deleteOption.type = 'button';
+        deleteOption.className = 'dropdown-item-btn delete-action';
+        deleteOption.textContent = 'Eliminar';
+        deleteOption.addEventListener('click', (e) => {
+            e.stopPropagation();
+            dropdownMenu.classList.remove('is-open');
+            requestDeleteMessage(message.id);
+        });
+
+        // Alternar el menú al hacer clic
+        triggerBtn.addEventListener('click', (e) => {
+            e.stopPropagation();
+            // Cierra otros menús abiertos antes de abrir este
+            document.querySelectorAll('.message-context-dropdown.is-open').forEach(menu => {
+                if (menu !== dropdownMenu) menu.classList.remove('is-open');
+            });
+            dropdownMenu.classList.toggle('is-open');
+        });
+
+        dropdownMenu.append(editOption, deleteOption);
+        menuContainer.append(triggerBtn, dropdownMenu);
+        messageElement.appendChild(menuContainer);
+    }
+
     elements.messages.appendChild(messageElement);
     applyConversationSearch();
     scrollToLastMessage();
 }
-
 /**
  * Obtiene etiqueta del autor según tipo de mensaje.
  * @param {object} message Mensaje a mostrar.

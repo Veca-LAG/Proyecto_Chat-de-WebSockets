@@ -1307,3 +1307,91 @@ input:disabled {
     pointer-events: none;
     animation: show-message 0.2s ease;
 }
+
+/* 1. Base del mensaje: obligatoria para poder fijar elementos en sus esquinas */
+article.message {
+    position: relative;
+    padding-top: 8px;      /* Espacio superior interno */
+    padding-right: 28px;   /* Espacio extra a la derecha para que el texto no tape los puntos */
+}
+
+/* 2. Contenedor anclado exactamente en la esquina superior derecha */
+.message-menu-container {
+    position: absolute;
+    top: 4px;
+    right: 4px;
+    display: inline-block;
+    z-index: 10;
+}
+
+/* 3. El botón de tres puntitos (Aparece de forma sutil al pasar el mouse) */
+.message-menu-trigger {
+    background: none;
+    border: none;
+    color: var(--text-muted, #888);
+    font-size: 1.2rem;
+    cursor: pointer;
+    padding: 2px 6px;
+    border-radius: 4px;
+    line-height: 1;
+    opacity: 0;
+    transition: opacity 0.15s ease, background 0.15s ease;
+}
+
+/* Muestra los puntos al hacer hover en el mensaje o si el menú ya está desplegado */
+article.message:hover .message-menu-trigger,
+.message-context-dropdown.is-open ~ .message-menu-trigger {
+    opacity: 1;
+}
+
+.message-menu-trigger:hover {
+    background: rgba(0, 0, 0, 0.06);
+    color: var(--text-main, #333);
+}
+
+/* 4. Menú flotante: se posiciona justo debajo de los puntos */
+.message-context-dropdown {
+    position: absolute;
+    right: 0;
+    top: 100%; /* Se despliega inmediatamente abajo del botón */
+    background: var(--bg-surface, #ffffff);
+    border: 1px solid var(--border-color, #e0e0e0);
+    border-radius: 6px;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.12);
+    display: none; 
+    min-width: 95px;
+    overflow: hidden;
+    margin-top: 2px;
+}
+
+/* Clase que activa la visualización del menú */
+.message-context-dropdown.is-open {
+    display: flex;
+    flex-direction: column;
+}
+
+/* Botones de opciones (Texto limpio) */
+.dropdown-item-btn {
+    background: none;
+    border: none;
+    width: 100%;
+    text-align: left;
+    padding: 8px 14px;
+    font-size: 0.85rem;
+    cursor: pointer;
+    color: var(--text-main, #333);
+    transition: background 0.15s;
+}
+
+.dropdown-item-btn:hover {
+    background: var(--bg-hover, #f5f5f5);
+}
+
+/* Opción de eliminar en rojo */
+.dropdown-item-btn.delete-action {
+    color: #dc3545;
+}
+
+.dropdown-item-btn.delete-action:hover {
+    background: #fff5f5;
+}
