@@ -43,6 +43,17 @@
       "passwordHash": "8a948aab9e66ac13b83e182da8ce6882f4bafbfb56aca745611d324e4597d52fb4bcd51761298c4d6ac3736e91d315a756712e772912dfb22f9c2bf65aab53d2",
       "createdAt": "2026-05-28T16:37:23.364Z",
       "updatedAt": "2026-05-28T16:37:23.364Z"
+    },
+    {
+      "id": "82d9ac47-5af6-41db-9e4e-94d6e678bdcb",
+      "code": "USR-679334",
+      "firstName": "Nely",
+      "lastName": "Lopez",
+      "nickname": "Nelly",
+      "passwordSalt": "2f62a365754c14ecfe01b2ec75f47e2b",
+      "passwordHash": "cd3ede9d8226e352401d3c0ad7139f418f3398e20e663eedb1a1694899213ebb900344e817de153e33a6156c7825a97ebf79bcdbed6d9479b6a67f0947864086",
+      "createdAt": "2026-05-29T16:00:32.432Z",
+      "updatedAt": "2026-05-29T16:00:32.432Z"
     }
   ],
   "sessions": [
@@ -69,6 +80,12 @@
       "userId": "a40cfe8b-5a10-48e6-81ab-2463aa17e204",
       "createdAt": "2026-05-28T16:37:23.365Z",
       "expiresAt": "2026-06-27T16:37:23.365Z"
+    },
+    {
+      "token": "e29a95b2d3fbd0780bdf15a0caef97748a14b4301cdbe52823360a0cb8d4cf61",
+      "userId": "82d9ac47-5af6-41db-9e4e-94d6e678bdcb",
+      "createdAt": "2026-05-29T16:00:32.433Z",
+      "expiresAt": "2026-06-28T16:00:32.433Z"
     }
   ],
   "globalHistory": [
