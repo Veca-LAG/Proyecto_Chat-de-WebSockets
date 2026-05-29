@@ -603,6 +603,9 @@ function handleServerMessage(rawMessage) {
             state.globalMessages.push({ ...payload, timestamp });
             if (state.activeChat?.type === 'global') {
                 renderMessage({ ...payload, timestamp, kind: 'global' });
+            } else if (payload.fromId !== state.selfId) {
+        // Chat global no está activo → contar no leído
+                state.unreadCounts['global'] = (state.unreadCounts['global'] || 0) + 1;
             }
             if (payload.fromId !== state.selfId) playNotify();
 
@@ -690,6 +693,21 @@ function renderNavigation() {
         const isActive = button.dataset.section === state.activeSection;
         button.classList.toggle('rail-item-active', isActive);
     });
+     // ── Badges de no leídos en el rail ──
+    const globalUnread = state.unreadCounts['global'] || 0;
+    const railIcon = elements.navGlobal.querySelector('.rail-icon');
+    let railBadge = elements.navGlobal.querySelector('.rail-unread-badge');
+
+    if (globalUnread > 0 && state.activeSection !== 'global') {
+        if (!railBadge) {
+            railBadge = document.createElement('span');
+            railBadge.className = 'rail-unread-badge';
+            elements.navGlobal.appendChild(railBadge);
+        }
+        railBadge.textContent = globalUnread > 99 ? '99+' : String(globalUnread);
+    } else if (railBadge) {
+        railBadge.remove();
+    }
     
 }
 
@@ -839,6 +857,7 @@ function createListItem({ avatar, title, subtitle, active = false, disabled = fa
  * Selecciona el Foro Global como conversación activa.
  */
 function selectGlobalChat() {
+    delete state.unreadCounts['global'];
     state.activeSection = 'global';
     state.activeChat = { type: 'global', id: 'global', name: 'Foro Global' };
     renderNavigation();
