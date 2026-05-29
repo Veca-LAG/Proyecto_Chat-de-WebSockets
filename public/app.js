@@ -177,6 +177,21 @@ function saveLocalState() {
     };
     localStorage.setItem(getStorageKey(), JSON.stringify(data));
 }
+function saveUnreadCounts() {
+    localStorage.setItem(
+        `chat-unread:${state.selfId || state.nickname}`,
+        JSON.stringify(state.unreadCounts)
+    );
+}
+
+function loadUnreadCounts() {
+    try {
+        const raw = localStorage.getItem(`chat-unread:${state.selfId || state.nickname}`);
+        state.unreadCounts = raw ? JSON.parse(raw) : {};
+    } catch {
+        state.unreadCounts = {};
+    }
+}
 
 /**
  * Construye la URL correcta para WebSocket según el protocolo actual.
@@ -388,6 +403,7 @@ function setAuthenticatedUser(user, sessionToken) {
     state.userCode = user.code || '';
     saveSession({ sessionToken: state.sessionToken, user });
     loadLocalState();
+    loadUnreadCounts();
     updateSelfIdentity();
 }
 
@@ -606,6 +622,8 @@ function handleServerMessage(rawMessage) {
             } else if (payload.fromId !== state.selfId) {
         // Chat global no está activo → contar no leído
                 state.unreadCounts['global'] = (state.unreadCounts['global'] || 0) + 1;
+                saveUnreadCounts(); 
+                renderNavigation()
             }
             if (payload.fromId !== state.selfId) playNotify();
 
@@ -651,9 +669,11 @@ function setActiveSection(section, openDefault = true) {
         Object.keys(state.unreadCounts)
             .filter(key => key.startsWith('private:'))
             .forEach(key => delete state.unreadCounts[key]);
+        saveUnreadCounts();
     }
     if (section === 'global' && openDefault) {
         state.activeChat = { type: 'global', id: 'global', name: 'Foro Global' };
+        saveUnreadCounts();
     } else {
         state.activeChat = null;
     }
@@ -858,6 +878,7 @@ function createListItem({ avatar, title, subtitle, active = false, disabled = fa
  */
 function selectGlobalChat() {
     delete state.unreadCounts['global'];
+    saveUnreadCounts(); 
     state.activeSection = 'global';
     state.activeChat = { type: 'global', id: 'global', name: 'Foro Global' };
     renderNavigation();
@@ -873,6 +894,7 @@ function selectGlobalChat() {
  */
 function selectPrivateByUser(user) {
     delete state.unreadCounts[`private:${user.nickname}`];  // ← AGREGAR
+    saveUnreadCounts();
     ensurePrivateConversation(user.nickname);
     state.activeSection = 'private';
     state.activeChat = { type: 'private', id: user.id, name: user.nickname };
@@ -891,6 +913,7 @@ function selectPrivateByUser(user) {
  */
 function selectPrivateConversation(nickname) {
     delete state.unreadCounts[`private:${nickname}`];
+    saveUnreadCounts();
     const activeUser = getActiveUserByNickname(nickname);
     state.activeChat = {
         type: 'private',
@@ -910,6 +933,7 @@ function selectPrivateConversation(nickname) {
  */
 function selectGroup(group) {
     delete state.unreadCounts[`group:${group.id}`];  // ← AGREGAR
+    saveUnreadCounts();
     state.activeChat = { type: 'group', id: group.id, name: group.name };
     renderChatList();
     renderActiveChatShell();
@@ -1245,6 +1269,7 @@ function receivePrivateMessage(payload, timestamp) {
     if (!isActiveChat && !isOwn) {
         const key = `private:${counterpartNickname}`;
         state.unreadCounts[key] = (state.unreadCounts[key] || 0) + 1;
+        saveUnreadCounts();
     }
 
     renderChatList();
@@ -1274,12 +1299,20 @@ function receiveGroupMessage(payload, timestamp) {
     if (group) {
         group.history = [...(group.history || []), message].slice(-50);
     }
+       // ── Contar no leído ──
+    const isActiveGroup = state.activeChat?.type === 'group' && state.activeChat.id === payload.groupId;
+    if (!isActiveGroup && payload.fromId !== state.selfId) {
+        const key = `group:${payload.groupId}`;
+        state.unreadCounts[key] = (state.unreadCounts[key] || 0) + 1;
+        saveUnreadCounts();
+    }
 
     renderChatList();
     renderNavigation();
 
     if (state.activeChat?.type === 'group' && state.activeChat.id === payload.groupId) {
         renderMessage(message);
+        saveUnreadCounts();
     }
 }
 
@@ -1837,6 +1870,7 @@ if (hasValidStoredSession(storedSession)) {
         state.userCode = user.code || '';
         updateSelfIdentity();
         loadLocalState();
+        loadUnreadCounts();
         
         // 🌐 FORZAR FORO GLOBAL AUTOMÁTICAMENTE AL CARGAR LA SESIÓN
         state.activeSection = 'global';
