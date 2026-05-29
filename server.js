@@ -18,6 +18,8 @@ const SESSION_DAYS = 30;
 const users = new Map(); // ws -> usuario público autenticado
 const socketsByUserId = new Map(); // userId -> Set<WebSocket>
 const inviteTokens = new Map(); // token -> groupId
+const messageCooldowns = new Map(); // userId -> timestamp del último mensaje para limitar spam
+
 let db = loadDatabase();
 
 const server = http.createServer(handleHttpRequest);
@@ -130,7 +132,15 @@ function saveDatabase() {
         fs.mkdirSync(DATA_DIR, { recursive: true });
     }
 
-    fs.writeFileSync(DB_FILE, JSON.stringify(db, null, 2));
+    fs.writeFile(
+        DB_FILE,
+        JSON.stringify(db, null, 2),
+        (error) => {
+            if (error) {
+                console.error('Error guardando DB:', error);
+            }
+        }
+    );
 }
 
 /**
@@ -679,6 +689,22 @@ function handleMessage(ws, payload, timestamp) {
     if (!user?.nickname || !text) {
         return;
     }
+
+     // Anti spam: 1 mensaje por segundo
+    const lastMessage = messageCooldowns.get(user.id) || 0;
+
+    if (Date.now() - lastMessage < 1000) {
+        sendJson(ws, {
+            type: 'error',
+            payload: {
+                text: 'Estás enviando mensajes demasiado rápido.'
+            },
+            timestamp: new Date().toISOString()
+        });
+        return;
+    }
+
+    messageCooldowns.set(user.id, Date.now());
 
     const message = {
         id: randomUUID(),
