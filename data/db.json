@@ -54,6 +54,17 @@
       "passwordHash": "cd3ede9d8226e352401d3c0ad7139f418f3398e20e663eedb1a1694899213ebb900344e817de153e33a6156c7825a97ebf79bcdbed6d9479b6a67f0947864086",
       "createdAt": "2026-05-29T16:00:32.432Z",
       "updatedAt": "2026-05-29T16:00:32.432Z"
+    },
+    {
+      "id": "54bf187c-5a0a-4baa-93c8-df35b67c17f6",
+      "code": "USR-107936",
+      "firstName": "Mary",
+      "lastName": "Cruz",
+      "nickname": "Mary",
+      "passwordSalt": "b4a9e34f3b2b29ea5c9debde8f596d91",
+      "passwordHash": "fd9eb9fc44196ff933543da1f2bb74bd73bbd36c5018c1d81a38fca476c67c7885f7457df227ba181f84960136a264ae33190fc67ed8617c06b3d5155e054e17",
+      "createdAt": "2026-05-29T16:13:26.390Z",
+      "updatedAt": "2026-05-29T16:13:26.390Z"
     }
   ],
   "sessions": [
@@ -86,6 +97,12 @@
       "userId": "82d9ac47-5af6-41db-9e4e-94d6e678bdcb",
       "createdAt": "2026-05-29T16:00:32.433Z",
       "expiresAt": "2026-06-28T16:00:32.433Z"
+    },
+    {
+      "token": "f3ed6ff8757ce00c7c8fb9ebe440a320aed366f971843928979a0bb591e2b9ba",
+      "userId": "54bf187c-5a0a-4baa-93c8-df35b67c17f6",
+      "createdAt": "2026-05-29T16:13:26.392Z",
+      "expiresAt": "2026-06-28T16:13:26.392Z"
     }
   ],
   "globalHistory": [
