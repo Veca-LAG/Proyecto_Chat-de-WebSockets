@@ -667,12 +667,6 @@ function handleServerMessage(rawMessage) {
 function setActiveSection(section, openDefault = true) {
 
     state.activeSection = section;
-    if (section === 'private') {
-        Object.keys(state.unreadCounts)
-            .filter(key => key.startsWith('private:'))
-            .forEach(key => delete state.unreadCounts[key]);
-        saveUnreadCounts();
-    }
     if (section === 'global' && openDefault) {
         state.activeChat = { type: 'global', id: 'global', name: 'Foro Global' };
         saveUnreadCounts();
