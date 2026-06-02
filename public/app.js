@@ -605,8 +605,10 @@ function handleServerMessage(rawMessage) {
             break;
         case 'user_list':
             state.users = payload.users || [];
-            renderChatList();
-            updateComposerState();
+            renderChatList();          // (Ya lo tienes)
+            renderParticipantsList();  // ✨ AÑADIR: Actualiza los checkboxes del modal de grupos
+            renderProfileUsers();      // ✨ AÑADIR: Actualiza la lista del panel derecho del foro
+            updateComposerState();     // (Ya lo tienes)
             break;
         case 'group_list':
             state.groups = payload.groups || [];
@@ -885,6 +887,7 @@ function selectGlobalChat() {
     renderChatList();
     renderActiveChatShell();
     renderActiveChatMessages();
+    renderProfileUsers();      // ✨ AÑADIR: Dibuja la lista del panel derecho inmediatamente al entrar
     updateComposerState();
 }
 
@@ -1063,6 +1066,12 @@ function renderActiveChatShell() {
  */
 function renderProfileUsers() {
     elements.profileExtra.innerHTML = '';
+    
+    // ✨ Opcional: Actualiza un contador general si tienes el elemento en tu HTML
+    if (elements.profileStatus) {
+        elements.profileStatus.textContent = `${state.users.length} usuarios activos`;
+    }
+
     const title = document.createElement('h3');
     title.textContent = 'Activos ahora';
     const list = document.createElement('ul');

@@ -103,12 +103,6 @@
       "expiresAt": "2026-06-27T16:34:14.932Z"
     },
     {
-      "token": "70aade8533a4c6d4dba8332c3b70762d6a8ef0fef56eea0e7f340e56e878d6c6",
-      "userId": "d07b6fd5-c56d-4e49-a578-b61f791e0f60",
-      "createdAt": "2026-05-28T16:36:16.565Z",
-      "expiresAt": "2026-06-27T16:36:16.565Z"
-    },
-    {
       "token": "16647e8d53c8b8b1eab583385dcf70154b78a294d33c20406023f5a13f08c3c5",
       "userId": "a40cfe8b-5a10-48e6-81ab-2463aa17e204",
       "createdAt": "2026-05-28T16:37:23.365Z",
@@ -143,6 +137,12 @@
       "userId": "26e31909-fe6c-4105-bad4-19b44362033c",
       "createdAt": "2026-05-29T16:52:46.178Z",
       "expiresAt": "2026-06-28T16:52:46.178Z"
+    },
+    {
+      "token": "b30acdc264186232902d4ea7578631b7fd67a9f68392b52913c896ab94846b47",
+      "userId": "54bf187c-5a0a-4baa-93c8-df35b67c17f6",
+      "createdAt": "2026-06-02T16:11:50.405Z",
+      "expiresAt": "2026-07-02T16:11:50.405Z"
     }
   ],
   "globalHistory": [
@@ -208,6 +208,27 @@
       "from": "aa",
       "text": "aa",
       "timestamp": "2026-05-29T16:24:02.164Z"
+    },
+    {
+      "id": "1ddc5137-cdee-4fb0-b01c-d470001890ef",
+      "fromId": "d07b6fd5-c56d-4e49-a578-b61f791e0f60",
+      "from": "veca",
+      "text": "hola",
+      "timestamp": "2026-06-02T16:23:07.273Z"
+    },
+    {
+      "id": "8ca3768b-88f3-4979-8847-8987c9c5926b",
+      "fromId": "d07b6fd5-c56d-4e49-a578-b61f791e0f60",
+      "from": "veca",
+      "text": "hola nelly",
+      "timestamp": "2026-06-02T16:23:35.943Z"
+    },
+    {
+      "id": "712a382a-a5c3-42b0-aa84-0e82885b6005",
+      "fromId": "82d9ac47-5af6-41db-9e4e-94d6e678bdcb",
+      "from": "Nelly",
+      "text": "😁",
+      "timestamp": "2026-06-02T16:25:07.975Z"
     }
   ],
   "privateMessages": [
