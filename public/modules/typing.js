@@ -43,7 +43,7 @@ export function setupTypingEvents({ input, sendTyping, canSendTyping = () => tru
 }
 
 /**
- * Muestra u oculta el indicador de usuarios escribiendo.
+ * Muestra u oculta el indicador de usuarios escribiendo con soporte para animación CSS.
  * @param {HTMLElement} indicator Contenedor del indicador.
  * @param {{fromId?:string,nickname?:string,isTyping?:boolean,chatType?:string}} payload Datos recibidos.
  * @param {string|null} selfId ID del usuario actual.
@@ -59,7 +59,27 @@ export function handleTypingStatus(indicator, payload, selfId) {
 
     if (payload.isTyping) {
         const name = payload.nickname || 'Alguien';
-        indicator.textContent = `📝 ${name} está escribiendo...`;
+        
+        // 🌟 Limpiamos el contenedor para armar la estructura dinámica
+        indicator.innerHTML = '';
+
+        // Creamos un contenedor de texto para el nombre
+        const textSpan = document.createElement('span');
+        textSpan.textContent = `📝 ${name} está escribiendo `;
+        textSpan.style.marginRight = '4px';
+
+        // Creamos la envoltura con la clase que configuramos en el CSS (.typing-indicator-bounce)
+        const bounceContainer = document.createElement('div');
+        bounceContainer.className = 'typing-indicator-bounce';
+
+        // Insertamos los 3 puntitos que saltarán con la animación CSS
+        for (let i = 0; i < 3; i++) {
+            bounceContainer.appendChild(document.createElement('span'));
+        }
+
+        // Metemos todo dentro de tu elemento indicador
+        indicator.appendChild(textSpan);
+        indicator.appendChild(bounceContainer);
         return;
     }
 
@@ -72,7 +92,7 @@ export function handleTypingStatus(indicator, payload, selfId) {
  */
 export function clearTypingIndicator(indicator) {
     if (indicator) {
-        indicator.textContent = '';
+        indicator.innerHTML = '';
     }
 }
 

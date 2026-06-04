@@ -143,6 +143,18 @@
       "userId": "54bf187c-5a0a-4baa-93c8-df35b67c17f6",
       "createdAt": "2026-06-02T16:11:50.405Z",
       "expiresAt": "2026-07-02T16:11:50.405Z"
+    },
+    {
+      "token": "7b9655f702d8690033c23ad5b3e83aee881b34c315d80c50ef6c6b64830a9a35",
+      "userId": "d07b6fd5-c56d-4e49-a578-b61f791e0f60",
+      "createdAt": "2026-06-04T16:35:26.171Z",
+      "expiresAt": "2026-07-04T16:35:26.171Z"
+    },
+    {
+      "token": "5412ba1ced14b2f09aa18282530400748143930e928a230cd44274e09fb95226",
+      "userId": "54bf187c-5a0a-4baa-93c8-df35b67c17f6",
+      "createdAt": "2026-06-04T16:42:24.029Z",
+      "expiresAt": "2026-07-04T16:42:24.029Z"
     }
   ],
   "globalHistory": [
@@ -735,6 +747,42 @@
       "toNickname": "bb",
       "text": "b",
       "timestamp": "2026-05-29T16:51:48.613Z"
+    },
+    {
+      "id": "a803bf15-e43f-415d-b33e-b0f25ccf7cff",
+      "fromId": "82d9ac47-5af6-41db-9e4e-94d6e678bdcb",
+      "fromNickname": "Nelly",
+      "toId": "54bf187c-5a0a-4baa-93c8-df35b67c17f6",
+      "toNickname": "Mary",
+      "text": "HJHLOKKKJL",
+      "timestamp": "2026-06-04T16:44:53.675Z"
+    },
+    {
+      "id": "5ce005d8-6cd7-4fc8-8ca3-79f7909b530d",
+      "fromId": "54bf187c-5a0a-4baa-93c8-df35b67c17f6",
+      "fromNickname": "Mary",
+      "toId": "82d9ac47-5af6-41db-9e4e-94d6e678bdcb",
+      "toNickname": "Nelly",
+      "text": "YUHHHHHYYYHHYYYYY",
+      "timestamp": "2026-06-04T16:45:13.291Z"
+    },
+    {
+      "id": "ee4a843e-95be-439b-81b8-9edce28dc14a",
+      "fromId": "82d9ac47-5af6-41db-9e4e-94d6e678bdcb",
+      "fromNickname": "Nelly",
+      "toId": "54bf187c-5a0a-4baa-93c8-df35b67c17f6",
+      "toNickname": "Mary",
+      "text": "ghyrrttytttttytrerefj",
+      "timestamp": "2026-06-04T16:52:41.276Z"
+    },
+    {
+      "id": "ed74f09c-19fa-4986-9c61-1479be66fb32",
+      "fromId": "54bf187c-5a0a-4baa-93c8-df35b67c17f6",
+      "fromNickname": "Mary",
+      "toId": "82d9ac47-5af6-41db-9e4e-94d6e678bdcb",
+      "toNickname": "Nelly",
+      "text": "fghty",
+      "timestamp": "2026-06-04T16:52:49.508Z"
     }
   ],
   "groups": [
