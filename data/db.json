@@ -87,6 +87,39 @@
       "passwordHash": "a26b96cc2e55200f2a6c617dc89c2c5862e937c08b7e34b64f4474d6e89582e000818a88e5f3566e60b33c98b54668d6b29a7b8e8ce655574eb204031f6a703e",
       "createdAt": "2026-05-29T16:18:26.074Z",
       "updatedAt": "2026-05-29T16:18:26.074Z"
+    },
+    {
+      "id": "9f728713-e3f4-4a6f-8183-0e5625b43b45",
+      "code": "USR-957655",
+      "firstName": "karla",
+      "lastName": "martinez",
+      "nickname": "78KARLA",
+      "passwordSalt": "40259d604446c03f9b24311e19850936",
+      "passwordHash": "6a9cd299b1a6c6b24ef19c733efb14600d1df5d4f7480b49d607f3776a9d9c39b1c2a5af45616c8c7c06246208ba36063cc01abf81b8410906f443025d8f8a1b",
+      "createdAt": "2026-06-10T16:18:29.768Z",
+      "updatedAt": "2026-06-10T16:18:29.768Z"
+    },
+    {
+      "id": "159f73eb-66f3-49ea-89fa-f291929c9592",
+      "code": "USR-381883",
+      "firstName": "231",
+      "lastName": "321",
+      "nickname": "2MARIA",
+      "passwordSalt": "6223e01246ed032c53c88f74116204f1",
+      "passwordHash": "7797a5d1c1222764a8bd4474a9597c55efc3fcd8802a950fb8dfb5a867a81e6132807df42ee80a68a157f0fd7c7334dcebd7d215dc60ed9db28475040f3f4c5c",
+      "createdAt": "2026-06-10T16:21:30.915Z",
+      "updatedAt": "2026-06-10T16:21:30.915Z"
+    },
+    {
+      "id": "d6a26109-e2ce-4d75-adf1-43f86ee28f0b",
+      "code": "USR-787647",
+      "firstName": "??¡l",
+      "lastName": "??-",
+      "nickname": "?lon",
+      "passwordSalt": "14936a79b543793fa719eee21f1082fb",
+      "passwordHash": "c6e0f440f044708714a4942ccc16d410420565681b50d4e530ad2feb6ac6a07bc383fece5d8bda25f9593881634eaca14460c6bde191e030e904aebe1cf1ee9f",
+      "createdAt": "2026-06-10T16:25:13.311Z",
+      "updatedAt": "2026-06-10T16:25:13.311Z"
     }
   ],
   "sessions": [
@@ -155,6 +188,18 @@
       "userId": "54bf187c-5a0a-4baa-93c8-df35b67c17f6",
       "createdAt": "2026-06-04T16:42:24.029Z",
       "expiresAt": "2026-07-04T16:42:24.029Z"
+    },
+    {
+      "token": "22c93f5fe0f46a1d5d951877d05960d61c2a69bf4530a8b948abcb30adc58185",
+      "userId": "9f728713-e3f4-4a6f-8183-0e5625b43b45",
+      "createdAt": "2026-06-10T16:18:29.783Z",
+      "expiresAt": "2026-07-10T16:18:29.783Z"
+    },
+    {
+      "token": "0b10361ed6ad95efc8cfaaf4197c3d19b5d291ca4cb966d31e6e4b440ab84304",
+      "userId": "d6a26109-e2ce-4d75-adf1-43f86ee28f0b",
+      "createdAt": "2026-06-10T16:25:13.316Z",
+      "expiresAt": "2026-07-10T16:25:13.316Z"
     }
   ],
   "globalHistory": [
