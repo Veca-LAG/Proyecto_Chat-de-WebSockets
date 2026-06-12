@@ -51,6 +51,12 @@ export function validateRegister(values) {
         return { valid: false, data: {}, error: 'Nombre, apellido y nickname son obligatorios.' };
     }
 
+    if (!/^[A-Za-zÁÉÍÓÚáéíóúÑñ]+$/.test(firstName) || !/^[A-Za-zÁÉÍÓÚáéíóúÑñ]+$/.test(lastName)) {
+        return { valid: false, data: {}, error: 'Nombre y apellido solo pueden contener letras.' };
+    }else if(firstName.length < 2 || lastName.length < 2){
+        return { valid: false, data: {}, error: 'Nombre y apellido deben tener al menos 2 caracteres.' };
+    }
+    
     if (password.length < MIN_PASSWORD_LENGTH) {
         return { valid: false, data: {}, error: `La contraseña debe tener al menos ${MIN_PASSWORD_LENGTH} caracteres.` };
     }
