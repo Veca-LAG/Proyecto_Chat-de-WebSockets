@@ -558,6 +558,7 @@ function handleServerMessage(rawMessage) {
             // 🌐 FIJAR EL FORO GLOBAL COMO CHAT ACTIVO AL ENTRAR MANUALLY
             state.activeSection = 'global';
             state.activeChat = { type: 'global', id: 'global', name: 'Foro Global' };
+            renderNavigation();
             renderChatList();
             renderActiveChatShell();
             renderActiveChatMessages();
