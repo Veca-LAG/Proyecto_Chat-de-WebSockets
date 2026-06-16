@@ -665,18 +665,14 @@ function handleServerMessage(rawMessage) {
  * @param {boolean} openDefault Indica si debe abrir automáticamente el chat principal de la sección.
  */
 function setActiveSection(section, openDefault = true) {
-
     state.activeSection = section;
-    if (section === 'private') {
-        Object.keys(state.unreadCounts)
-            .filter(key => key.startsWith('private:'))
-            .forEach(key => delete state.unreadCounts[key]);
-        saveUnreadCounts();
-    }
+
+    // Si pasamos a global, el chat activo sí es el foro global
     if (section === 'global' && openDefault) {
         state.activeChat = { type: 'global', id: 'global', name: 'Foro Global' };
-        saveUnreadCounts();
     } else {
+        // Al cambiar a 'private' o 'communities', NO dejamos un chat activo por defecto.
+        // Esto evita que el sistema crea que ya estás dentro de una conversación específica.
         state.activeChat = null;
     }
 
@@ -699,7 +695,8 @@ function renderNavigation() {
         .reduce((sum, [, count]) => sum + count, 0);
 
     let privateBadge = elements.navPrivate.querySelector('.rail-unread-badge');
-    if (privateUnread > 0 && state.activeSection !== 'private') {
+    // CORREGIDO: Quitamos && state.activeSection !== 'private' para que no se borre al cambiar de sección
+    if (privateUnread > 0) {
         if (!privateBadge) {
             privateBadge = document.createElement('span');
             privateBadge.className = 'rail-unread-badge';
@@ -709,18 +706,39 @@ function renderNavigation() {
     } else if (privateBadge) {
         privateBadge.remove();
     }
+
+    // ── Badge Comunidades: suma de todos los grupos (AÑADIDO CON LA MISMA LÓGICA) ──
+    const communitiesUnread = Object.entries(state.unreadCounts)
+        .filter(([key]) => key.startsWith('group:'))
+        .reduce((sum, [, count]) => sum + count, 0);
+
+    let communitiesBadge = elements.navCommunities.querySelector('.rail-unread-badge');
+    // CORREGIDO: Quitamos && state.activeSection !== 'communities' para mantenerlo visible
+    if (communitiesUnread > 0) {
+        if (!communitiesBadge) {
+            communitiesBadge = document.createElement('span');
+            communitiesBadge.className = 'rail-unread-badge';
+            elements.navCommunities.appendChild(communitiesBadge);
+        }
+        communitiesBadge.textContent = communitiesUnread > 99 ? '99+' : String(communitiesUnread);
+    } else if (communitiesBadge) {
+        communitiesBadge.remove();
+    }
+
     const navButtons = [elements.navGlobal, elements.navPrivate, elements.navCommunities];
     
     navButtons.forEach((button) => {
         const isActive = button.dataset.section === state.activeSection;
         button.classList.toggle('rail-item-active', isActive);
     });
+
      // ── Badges de no leídos en el rail ──
     const globalUnread = state.unreadCounts['global'] || 0;
     const railIcon = elements.navGlobal.querySelector('.rail-icon');
     let railBadge = elements.navGlobal.querySelector('.rail-unread-badge');
 
-    if (globalUnread > 0 && state.activeSection !== 'global') {
+    // CORREGIDO: Si deseas mantener la misma lógica uniforme en el Foro Global, quitamos también el candado de sección activa
+    if (globalUnread > 0) {
         if (!railBadge) {
             railBadge = document.createElement('span');
             railBadge.className = 'rail-unread-badge';
@@ -923,6 +941,10 @@ function selectPrivateConversation(nickname) {
         id: activeUser?.id || null,
         name: nickname
     };
+    
+    // ── ¡AÑADIDO! Esto actualiza el badge del menú lateral inmediatamente al abrir el chat ──
+    renderNavigation(); 
+
     renderChatList();
     renderActiveChatShell();
     renderActiveChatMessages();
@@ -935,9 +957,14 @@ function selectPrivateConversation(nickname) {
  * @param {{id:string,name:string}} group Grupo seleccionado.
  */
 function selectGroup(group) {
-    delete state.unreadCounts[`group:${group.id}`];  // ← AGREGAR
+    delete state.unreadCounts[`group:${group.id}`]; 
     saveUnreadCounts();
+    
     state.activeChat = { type: 'group', id: group.id, name: group.name };
+    
+    // ── ¡AÑADIDO! Esto actualiza el badge del menú lateral de Comunidades inmediatamente al abrir el grupo ──
+    renderNavigation(); 
+
     renderChatList();
     renderActiveChatShell();
     renderActiveChatMessages();

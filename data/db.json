@@ -194,6 +194,24 @@
       "userId": "d07b6fd5-c56d-4e49-a578-b61f791e0f60",
       "createdAt": "2026-06-11T16:49:06.166Z",
       "expiresAt": "2026-07-11T16:49:06.166Z"
+    },
+    {
+      "token": "b557035b219e3809f30f697f8ca610c838920424d27ecf9a455ed31b3ece76c3",
+      "userId": "e4c14742-9ffd-473e-98e2-0a1d52e8b533",
+      "createdAt": "2026-06-16T16:17:48.620Z",
+      "expiresAt": "2026-07-16T16:17:48.620Z"
+    },
+    {
+      "token": "5b59406eeec5b3abd3694ae85272ea204b616aa85be0a12a94f3a04b14b4cc82",
+      "userId": "26e31909-fe6c-4105-bad4-19b44362033c",
+      "createdAt": "2026-06-16T16:17:54.161Z",
+      "expiresAt": "2026-07-16T16:17:54.161Z"
+    },
+    {
+      "token": "15b9bed67debf5e20187b1368b11d0483d55cb425911c2be7137d62b76111738",
+      "userId": "26e31909-fe6c-4105-bad4-19b44362033c",
+      "createdAt": "2026-06-16T16:21:10.297Z",
+      "expiresAt": "2026-07-16T16:21:10.297Z"
     }
   ],
   "globalHistory": [
@@ -840,6 +858,114 @@
       "toNickname": "2MARIA",
       "text": "prueba 1",
       "timestamp": "2026-06-10T16:38:27.642Z"
+    },
+    {
+      "id": "4efbaecd-1581-4dbe-a28b-de96d5aea458",
+      "fromId": "e4c14742-9ffd-473e-98e2-0a1d52e8b533",
+      "fromNickname": "aa",
+      "toId": "26e31909-fe6c-4105-bad4-19b44362033c",
+      "toNickname": "bb",
+      "text": "qqqq",
+      "timestamp": "2026-06-16T16:08:50.561Z"
+    },
+    {
+      "id": "4d9ede52-05a6-46d3-90cd-03c5a1a06c93",
+      "fromId": "e4c14742-9ffd-473e-98e2-0a1d52e8b533",
+      "fromNickname": "aa",
+      "toId": "26e31909-fe6c-4105-bad4-19b44362033c",
+      "toNickname": "bb",
+      "text": "q",
+      "timestamp": "2026-06-16T16:08:51.471Z"
+    },
+    {
+      "id": "87383730-9366-4272-9213-fde32681a1d4",
+      "fromId": "e4c14742-9ffd-473e-98e2-0a1d52e8b533",
+      "fromNickname": "aa",
+      "toId": "26e31909-fe6c-4105-bad4-19b44362033c",
+      "toNickname": "bb",
+      "text": "q",
+      "timestamp": "2026-06-16T16:08:51.849Z"
+    },
+    {
+      "id": "14f8e23e-97a2-485e-83b4-a62f0775bc2a",
+      "fromId": "e4c14742-9ffd-473e-98e2-0a1d52e8b533",
+      "fromNickname": "aa",
+      "toId": "26e31909-fe6c-4105-bad4-19b44362033c",
+      "toNickname": "bb",
+      "text": "q",
+      "timestamp": "2026-06-16T16:08:52.071Z"
+    },
+    {
+      "id": "001ece15-6079-499c-a7e3-f2d1a2725c67",
+      "fromId": "e4c14742-9ffd-473e-98e2-0a1d52e8b533",
+      "fromNickname": "aa",
+      "toId": "26e31909-fe6c-4105-bad4-19b44362033c",
+      "toNickname": "bb",
+      "text": "q",
+      "timestamp": "2026-06-16T16:08:52.432Z"
+    },
+    {
+      "id": "54c80426-3790-466c-9545-c408517d4dd1",
+      "fromId": "e4c14742-9ffd-473e-98e2-0a1d52e8b533",
+      "fromNickname": "aa",
+      "toId": "26e31909-fe6c-4105-bad4-19b44362033c",
+      "toNickname": "bb",
+      "text": "qaaa",
+      "timestamp": "2026-06-16T16:17:58.219Z"
+    },
+    {
+      "id": "b68cdefd-66b0-490d-ad17-3f57bb4fe113",
+      "fromId": "e4c14742-9ffd-473e-98e2-0a1d52e8b533",
+      "fromNickname": "aa",
+      "toId": "26e31909-fe6c-4105-bad4-19b44362033c",
+      "toNickname": "bb",
+      "text": "a",
+      "timestamp": "2026-06-16T16:17:58.451Z"
+    },
+    {
+      "id": "eee07b96-c4c5-4dc3-96a4-27256e4a7526",
+      "fromId": "e4c14742-9ffd-473e-98e2-0a1d52e8b533",
+      "fromNickname": "aa",
+      "toId": "26e31909-fe6c-4105-bad4-19b44362033c",
+      "toNickname": "bb",
+      "text": "a",
+      "timestamp": "2026-06-16T16:17:58.811Z"
+    },
+    {
+      "id": "09b383e3-527b-41c8-87f8-e0f230707ce7",
+      "fromId": "e4c14742-9ffd-473e-98e2-0a1d52e8b533",
+      "fromNickname": "aa",
+      "toId": "26e31909-fe6c-4105-bad4-19b44362033c",
+      "toNickname": "bb",
+      "text": "aaa",
+      "timestamp": "2026-06-16T16:20:50.469Z"
+    },
+    {
+      "id": "461b6860-be04-4b7b-a1e3-765095182bb0",
+      "fromId": "e4c14742-9ffd-473e-98e2-0a1d52e8b533",
+      "fromNickname": "aa",
+      "toId": "26e31909-fe6c-4105-bad4-19b44362033c",
+      "toNickname": "bb",
+      "text": "a",
+      "timestamp": "2026-06-16T16:20:50.637Z"
+    },
+    {
+      "id": "c806b7df-3e6e-4990-9f39-1dfc3c694bd3",
+      "fromId": "e4c14742-9ffd-473e-98e2-0a1d52e8b533",
+      "fromNickname": "aa",
+      "toId": "26e31909-fe6c-4105-bad4-19b44362033c",
+      "toNickname": "bb",
+      "text": "a",
+      "timestamp": "2026-06-16T16:20:50.961Z"
+    },
+    {
+      "id": "eabe2cae-8b49-4da9-9d8b-1a83b2d5a252",
+      "fromId": "e4c14742-9ffd-473e-98e2-0a1d52e8b533",
+      "fromNickname": "aa",
+      "toId": "26e31909-fe6c-4105-bad4-19b44362033c",
+      "toNickname": "bb",
+      "text": "a",
+      "timestamp": "2026-06-16T16:20:51.121Z"
     }
   ],
   "groups": [
