@@ -799,34 +799,6 @@ function handleDeletePrivateMessage(ws, payload) {
 }
 
 /**
- * Actualiza el texto de un mensaje privado (solo autor).
- * @param {WebSocket} ws
- * @param {{id:string,text:string}} payload
- * @param {string} timestamp
- */
-function handleUpdatePrivateMessage(ws, payload, timestamp) {
-    const requester = users.get(ws);
-    if (!requester?.id) return sendJson(ws, { type: 'private_error', payload: { text: 'No autenticado.' }, timestamp: new Date().toISOString() });
-
-    const id = String(payload.id || '').trim();
-    const newText = sanitizeText(payload.text || '', MAX_MESSAGE_LENGTH);
-    if (!id || !newText) return sendJson(ws, { type: 'private_error', payload: { text: 'Datos inválidos.' }, timestamp: new Date().toISOString() });
-
-    const msg = db.privateMessages.find((m) => m.id === id);
-    if (!msg) return sendJson(ws, { type: 'private_error', payload: { text: 'Mensaje no encontrado.' }, timestamp: new Date().toISOString() });
-
-    if (msg.fromId !== requester.id) return sendJson(ws, { type: 'private_error', payload: { text: 'No autorizado para editar.' }, timestamp: new Date().toISOString() });
-
-    msg.text = newText;
-    msg.editedAt = new Date().toISOString();
-    saveDatabase();
-
-    const notice = { type: 'private_edit', payload: { id, text: newText, editedAt: msg.editedAt }, timestamp: msg.editedAt };
-    sendToUser(msg.toId, notice);
-    sendToUser(msg.fromId, notice);
-}
-
-/**
  * Crea un grupo/comunidad con miembros activos.
  * @param {WebSocket} ws Cliente creador.
  * @param {{name:string,memberIds:string[]}} payload Datos del grupo.
@@ -1103,9 +1075,6 @@ function handleSocketMessage(ws, rawMessage) {
             break;
         case 'delete_private_message':
             handleDeletePrivateMessage(ws, payload);
-            break;
-        case 'update_private_message':
-            handleUpdatePrivateMessage(ws, payload, timestamp);
             break;
         case 'typing':
             handleTyping(ws, payload);
