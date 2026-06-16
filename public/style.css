@@ -971,7 +971,14 @@ input:disabled {
     border-radius: 999px;
     outline: none;
 }
-
+.login-logo {
+    width: 100px;
+    height: 100px;
+    object-fit: contain;
+    display: block;
+    flex: 0 0 auto;
+    border-radius: 18px;
+}
 .form-error {
     display: block;
     min-height: 1.2rem;
