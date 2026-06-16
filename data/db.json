@@ -190,10 +190,16 @@
       "expiresAt": "2026-07-04T16:42:24.029Z"
     },
     {
-      "token": "0fd33d5bbff382000a0c905e505cdfa876842cfc3313aa48fc270ff3bba002d2",
+      "token": "7f0d437eeb7b3c394e0fdaa0be1f6ae1d4d558315997e8886da77329334c9c46",
       "userId": "d07b6fd5-c56d-4e49-a578-b61f791e0f60",
-      "createdAt": "2026-06-11T16:49:06.166Z",
-      "expiresAt": "2026-07-11T16:49:06.166Z"
+      "createdAt": "2026-06-15T16:11:00.588Z",
+      "expiresAt": "2026-07-15T16:11:00.588Z"
+    },
+    {
+      "token": "79ec41ffdde04f4b6dbc0f2e7b2907b88a77a6d384215f7bcccc82c42dc44d4e",
+      "userId": "9f728713-e3f4-4a6f-8183-0e5625b43b45",
+      "createdAt": "2026-06-16T16:30:48.705Z",
+      "expiresAt": "2026-07-16T16:30:48.705Z"
     }
   ],
   "globalHistory": [
@@ -840,6 +846,33 @@
       "toNickname": "2MARIA",
       "text": "prueba 1",
       "timestamp": "2026-06-10T16:38:27.642Z"
+    },
+    {
+      "id": "8167b2cc-f770-4dba-a47f-4ea6b7511319",
+      "fromId": "9f728713-e3f4-4a6f-8183-0e5625b43b45",
+      "fromNickname": "78KARLA",
+      "toId": "d07b6fd5-c56d-4e49-a578-b61f791e0f60",
+      "toNickname": "veca",
+      "text": "adsad",
+      "timestamp": "2026-06-16T16:30:54.089Z"
+    },
+    {
+      "id": "99ffcc11-9589-47e2-ad06-7bd645696ede",
+      "fromId": "d07b6fd5-c56d-4e49-a578-b61f791e0f60",
+      "fromNickname": "veca",
+      "toId": "9f728713-e3f4-4a6f-8183-0e5625b43b45",
+      "toNickname": "78KARLA",
+      "text": "wdfw",
+      "timestamp": "2026-06-16T16:31:08.805Z"
+    },
+    {
+      "id": "3eccfd17-fc93-41eb-b854-5fcabdf28189",
+      "fromId": "d07b6fd5-c56d-4e49-a578-b61f791e0f60",
+      "fromNickname": "veca",
+      "toId": "9f728713-e3f4-4a6f-8183-0e5625b43b45",
+      "toNickname": "78KARLA",
+      "text": "sgdsg",
+      "timestamp": "2026-06-16T16:36:20.292Z"
     }
   ],
   "groups": [
