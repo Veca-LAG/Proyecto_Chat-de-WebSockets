@@ -200,6 +200,18 @@
       "userId": "9f728713-e3f4-4a6f-8183-0e5625b43b45",
       "createdAt": "2026-06-16T16:30:48.705Z",
       "expiresAt": "2026-07-16T16:30:48.705Z"
+    },
+    {
+      "token": "31713f141f648c2e3d3f8e65a99888940a06c525e02d4bd28140e44c0d498ddc",
+      "userId": "e4c14742-9ffd-473e-98e2-0a1d52e8b533",
+      "createdAt": "2026-06-16T18:02:13.703Z",
+      "expiresAt": "2026-07-16T18:02:13.703Z"
+    },
+    {
+      "token": "3185ee4ec0a2b7f07735a1dde83534f03c98bd14315367372b5aa2e6214b711e",
+      "userId": "26e31909-fe6c-4105-bad4-19b44362033c",
+      "createdAt": "2026-06-16T18:02:18.624Z",
+      "expiresAt": "2026-07-16T18:02:18.624Z"
     }
   ],
   "globalHistory": [
@@ -873,6 +885,42 @@
       "toNickname": "78KARLA",
       "text": "sgdsg",
       "timestamp": "2026-06-16T16:36:20.292Z"
+    },
+    {
+      "id": "f6400d85-eb3e-4db9-90a5-1f7cdcf0d599",
+      "fromId": "26e31909-fe6c-4105-bad4-19b44362033c",
+      "fromNickname": "bb",
+      "toId": "e4c14742-9ffd-473e-98e2-0a1d52e8b533",
+      "toNickname": "aa",
+      "text": "aaa",
+      "timestamp": "2026-06-16T18:02:29.597Z"
+    },
+    {
+      "id": "4a85d1b0-a037-4740-9217-5928f3ad5410",
+      "fromId": "26e31909-fe6c-4105-bad4-19b44362033c",
+      "fromNickname": "bb",
+      "toId": "e4c14742-9ffd-473e-98e2-0a1d52e8b533",
+      "toNickname": "aa",
+      "text": "a",
+      "timestamp": "2026-06-16T18:02:30.075Z"
+    },
+    {
+      "id": "23ea7d24-b1cf-4461-bb9a-5214296cae02",
+      "fromId": "26e31909-fe6c-4105-bad4-19b44362033c",
+      "fromNickname": "bb",
+      "toId": "e4c14742-9ffd-473e-98e2-0a1d52e8b533",
+      "toNickname": "aa",
+      "text": "a",
+      "timestamp": "2026-06-16T18:02:30.259Z"
+    },
+    {
+      "id": "bae15986-0a07-4142-88a9-f57e998f60b4",
+      "fromId": "26e31909-fe6c-4105-bad4-19b44362033c",
+      "fromNickname": "bb",
+      "toId": "e4c14742-9ffd-473e-98e2-0a1d52e8b533",
+      "toNickname": "aa",
+      "text": "a",
+      "timestamp": "2026-06-16T18:02:30.591Z"
     }
   ],
   "groups": [
