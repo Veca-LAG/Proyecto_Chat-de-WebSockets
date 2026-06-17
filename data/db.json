@@ -120,6 +120,28 @@
       "passwordHash": "c6e0f440f044708714a4942ccc16d410420565681b50d4e530ad2feb6ac6a07bc383fece5d8bda25f9593881634eaca14460c6bde191e030e904aebe1cf1ee9f",
       "createdAt": "2026-06-10T16:25:13.311Z",
       "updatedAt": "2026-06-10T16:25:13.311Z"
+    },
+    {
+      "id": "cde0cbbc-39c7-432d-ab3c-1c204c3b7731",
+      "code": "USR-665275",
+      "firstName": "Heri",
+      "lastName": "gei",
+      "nickname": "Heri",
+      "passwordSalt": "1dce5039030753a0b39c4074cf0f9b6d",
+      "passwordHash": "5568d42ec1f4e9a2790f4bcca507669686030d528a31f0966cd639829bd9512d5863b344edbd74b5c83f715391140df5f848446c1228a4ac3530586423d0a857",
+      "createdAt": "2026-06-16T17:24:25.627Z",
+      "updatedAt": "2026-06-16T17:24:25.627Z"
+    },
+    {
+      "id": "686a9120-4d1d-4f93-8e44-9bfae45d3db6",
+      "code": "USR-460595",
+      "firstName": "Alo",
+      "lastName": "gg",
+      "nickname": "Alo",
+      "passwordSalt": "3d100ca0c8344062030556ae2bcb01a6",
+      "passwordHash": "766212530dc21b9c6394757df74ffe0dca10f5e451de00cb941c4bece7b715cd355a20939fb3eccdd1f409c7c433f7c5cb9e58ff84a9a5e1f830c0a47a7f73b9",
+      "createdAt": "2026-06-16T17:25:07.579Z",
+      "updatedAt": "2026-06-16T17:25:07.579Z"
     }
   ],
   "sessions": [
@@ -200,6 +222,12 @@
       "userId": "9f728713-e3f4-4a6f-8183-0e5625b43b45",
       "createdAt": "2026-06-16T16:30:48.705Z",
       "expiresAt": "2026-07-16T16:30:48.705Z"
+    },
+    {
+      "token": "be01f38fad86cb3b6134e047298c7685f98408e6d19707aa8bd1e1aaa72c20d0",
+      "userId": "cde0cbbc-39c7-432d-ab3c-1c204c3b7731",
+      "createdAt": "2026-06-16T17:25:45.550Z",
+      "expiresAt": "2026-07-16T17:25:45.550Z"
     }
   ],
   "globalHistory": [
@@ -286,6 +314,13 @@
       "from": "Nelly",
       "text": "😁",
       "timestamp": "2026-06-02T16:25:07.975Z"
+    },
+    {
+      "id": "54ea3543-f05f-4e43-a94c-37f637f62a9d",
+      "fromId": "cde0cbbc-39c7-432d-ab3c-1c204c3b7731",
+      "from": "Heri",
+      "text": "hola",
+      "timestamp": "2026-06-16T17:25:53.842Z"
     }
   ],
   "privateMessages": [
@@ -873,6 +908,24 @@
       "toNickname": "78KARLA",
       "text": "sgdsg",
       "timestamp": "2026-06-16T16:36:20.292Z"
+    },
+    {
+      "id": "b419714e-08da-4578-8058-6c82d897f026",
+      "fromId": "686a9120-4d1d-4f93-8e44-9bfae45d3db6",
+      "fromNickname": "Alo",
+      "toId": "cde0cbbc-39c7-432d-ab3c-1c204c3b7731",
+      "toNickname": "Heri",
+      "text": "hola",
+      "timestamp": "2026-06-16T17:26:02.989Z"
+    },
+    {
+      "id": "a777b742-5cfc-4fe5-ae3b-49d5561b02a5",
+      "fromId": "686a9120-4d1d-4f93-8e44-9bfae45d3db6",
+      "fromNickname": "Alo",
+      "toId": "cde0cbbc-39c7-432d-ab3c-1c204c3b7731",
+      "toNickname": "Heri",
+      "text": "hola",
+      "timestamp": "2026-06-16T17:26:16.758Z"
     }
   ],
   "groups": [
