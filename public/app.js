@@ -942,10 +942,6 @@ function selectPrivateConversation(nickname) {
         id: activeUser?.id || null,
         name: nickname
     };
-
-    // ── ¡AÑADIDO! Esto actualiza el badge del menú lateral inmediatamente al abrir el chat ──
-    renderNavigation(); 
-
     renderChatList();
     renderActiveChatShell();
     renderActiveChatMessages();
@@ -960,12 +956,7 @@ function selectPrivateConversation(nickname) {
 function selectGroup(group) {
     delete state.unreadCounts[`group:${group.id}`]; 
     saveUnreadCounts();
-
     state.activeChat = { type: 'group', id: group.id, name: group.name };
-
-    // ── ¡AÑADIDO! Esto actualiza el badge del menú lateral de Comunidades inmediatamente al abrir el grupo ──
-    renderNavigation(); 
-
     renderChatList();
     renderActiveChatShell();
     renderActiveChatMessages();

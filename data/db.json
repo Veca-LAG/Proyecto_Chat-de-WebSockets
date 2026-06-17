@@ -222,12 +222,6 @@
       "userId": "9f728713-e3f4-4a6f-8183-0e5625b43b45",
       "createdAt": "2026-06-16T16:30:48.705Z",
       "expiresAt": "2026-07-16T16:30:48.705Z"
-    },
-    {
-      "token": "be01f38fad86cb3b6134e047298c7685f98408e6d19707aa8bd1e1aaa72c20d0",
-      "userId": "cde0cbbc-39c7-432d-ab3c-1c204c3b7731",
-      "createdAt": "2026-06-16T17:25:45.550Z",
-      "expiresAt": "2026-07-16T17:25:45.550Z"
     }
   ],
   "globalHistory": [
@@ -908,24 +902,6 @@
       "toNickname": "78KARLA",
       "text": "sgdsg",
       "timestamp": "2026-06-16T16:36:20.292Z"
-    },
-    {
-      "id": "b419714e-08da-4578-8058-6c82d897f026",
-      "fromId": "686a9120-4d1d-4f93-8e44-9bfae45d3db6",
-      "fromNickname": "Alo",
-      "toId": "cde0cbbc-39c7-432d-ab3c-1c204c3b7731",
-      "toNickname": "Heri",
-      "text": "hola",
-      "timestamp": "2026-06-16T17:26:02.989Z"
-    },
-    {
-      "id": "a777b742-5cfc-4fe5-ae3b-49d5561b02a5",
-      "fromId": "686a9120-4d1d-4f93-8e44-9bfae45d3db6",
-      "fromNickname": "Alo",
-      "toId": "cde0cbbc-39c7-432d-ab3c-1c204c3b7731",
-      "toNickname": "Heri",
-      "text": "hola",
-      "timestamp": "2026-06-16T17:26:16.758Z"
     }
   ],
   "groups": [
