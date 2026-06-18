@@ -636,6 +636,9 @@ function handleServerMessage(rawMessage) {
             if (payload.fromId !== state.selfId) playNotify();
             renderNavigation();
             break;
+        case 'private_delete':
+            handlePrivateDelete(payload);
+            break;
         case 'group_msg':
             receiveGroupMessage(payload, timestamp);
             if (payload.fromId !== state.selfId) playNotify();
@@ -1330,6 +1333,7 @@ function receivePrivateMessage(payload, timestamp) {
     const counterpartNickname = isOwn ? payload.to : payload.from;
     const conversation = ensurePrivateConversation(counterpartNickname);
     const message = {
+        id: payload.id,
         from: payload.from,
         fromId: payload.fromId,
         to: payload.to,
