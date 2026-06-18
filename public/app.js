@@ -1218,8 +1218,8 @@ function renderMessage(message) {
     metaElement.append(authorElement, timeElement);
     messageElement.append(metaElement, textElement);
 
- // 🌟 NUEVO: Menú de tres puntitos en la esquina superior derecha (texto limpio)
-    if (isOwn && message.id) {
+    // 🌟 CORRECCIÓN: Quitamos '&& message.id' para que pinte los 3 puntitos inmediatamente al enviar
+    if (isOwn) {
         const menuContainer = document.createElement('div');
         menuContainer.className = 'message-menu-container';
 
@@ -1241,7 +1241,12 @@ function renderMessage(message) {
         deleteOption.addEventListener('click', (e) => {
             e.stopPropagation();
             dropdownMenu.classList.remove('is-open');
-            requestDeleteMessage(message.id);
+            
+            // 🌟 Buscamos el ID dinámico en el dataset o en el objeto
+            const currentId = messageElement.dataset.messageId || message.id;
+            
+            // Pasamos el ID y el elemento actual para asegurar que se borre de inmediato
+            requestDeleteMessage(currentId, messageElement);
         });
 
         // Alternar el menú al hacer clic
@@ -1262,35 +1267,48 @@ function renderMessage(message) {
     elements.messages.appendChild(messageElement);
     applyConversationSearch();
     scrollToLastMessage();
-}
-/**
+}/**
  * Solicita eliminar un mensaje privado: confirma, notifica al servidor y borra localmente.
  * @param {string} messageId Id del mensaje a eliminar.
+ * @param {HTMLElement} [targetElement] Elemento DOM del mensaje por si no tiene ID aún.
  */
-function requestDeleteMessage(messageId) {
-    if (!messageId) return;
+function requestDeleteMessage(messageId, targetElement = null) {
+    // Si no tiene ID y tampoco nos pasaron el elemento de la pantalla, no hacemos nada
+    if (!messageId && !targetElement) return;
+
     const confirmed = window.confirm('¿Eliminar este mensaje privado?');
     if (!confirmed) return;
 
-    // Notificamos al servidor (tipo utilizado: delete_private_message)
-    sendJson({ type: 'delete_private_message', payload: { id: messageId }, timestamp: new Date().toISOString() });
+    // 🌟 Si el mensaje YA TIENE ID (mensaje viejo o confirmado), notificamos al servidor
+    if (messageId) {
+        sendJson({ type: 'delete_private_message', payload: { id: messageId }, timestamp: new Date().toISOString() });
+    }
 
-    // Borrado optimista en el DOM
-    const el = elements.messages.querySelector(`[data-message-id="${messageId}"]`);
-    if (el) el.remove();
+    // 🌟 BORRADO EN LA PANTALLA (DOM)
+    if (targetElement) {
+        // Si tenemos el elemento directo (mensaje nuevo), lo borramos de inmediato
+        targetElement.remove();
+    } else if (messageId) {
+        // Si solo tenemos el ID, lo buscamos en el DOM como lo hacías antes
+        const el = elements.messages.querySelector(`[data-message-id="${messageId}"]`);
+        if (el) el.remove();
+    }
 
-    // Borrado en el estado local (conversaciones privadas)
+    // Borrado en el estado local (conversaciones privadas) - Solo si tiene un ID válido
     let changed = false;
-    Object.values(state.privateConversations).forEach((conv) => {
-        const idx = (conv.messages || []).findIndex((m) => m.id === messageId);
-        if (idx !== -1) {
-            conv.messages.splice(idx, 1);
-            conv.updatedAt = new Date().toISOString();
-            changed = true;
-        }
-    });
+    if (messageId) {
+        Object.values(state.privateConversations).forEach((conv) => {
+            const idx = (conv.messages || []).findIndex((m) => m.id === messageId);
+            if (idx !== -1) {
+                conv.messages.splice(idx, 1);
+                conv.updatedAt = new Date().toISOString();
+                changed = true;
+            }
+        });
+    }
 
-    if (changed) {
+    // Si cambió el estado o si eliminamos un mensaje nuevo de la pantalla, actualizamos la interfaz
+    if (changed || targetElement) {
         saveLocalState();
         renderChatList();
         renderNavigation();
