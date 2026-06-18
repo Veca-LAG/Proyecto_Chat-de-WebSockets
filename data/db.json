@@ -950,6 +950,24 @@
       "toNickname": "Mary",
       "text": "hj",
       "timestamp": "2026-06-18T16:52:29.475Z"
+    },
+    {
+      "id": "eaae3bd5-ee2a-4862-8b4b-d8282c50c9b8",
+      "fromId": "d07b6fd5-c56d-4e49-a578-b61f791e0f60",
+      "fromNickname": "veca",
+      "toId": "9f728713-e3f4-4a6f-8183-0e5625b43b45",
+      "toNickname": "78KARLA",
+      "text": "sdasd",
+      "timestamp": "2026-06-18T16:55:14.316Z"
+    },
+    {
+      "id": "bdde150b-a892-4404-81a5-0ea72659afc0",
+      "fromId": "d07b6fd5-c56d-4e49-a578-b61f791e0f60",
+      "fromNickname": "veca",
+      "toId": "9f728713-e3f4-4a6f-8183-0e5625b43b45",
+      "toNickname": "78KARLA",
+      "text": "vxczvz",
+      "timestamp": "2026-06-18T16:55:42.619Z"
     }
   ],
   "groups": [
