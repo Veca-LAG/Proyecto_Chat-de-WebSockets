@@ -671,12 +671,16 @@ function handleServerMessage(rawMessage) {
 function setActiveSection(section, openDefault = true) {
     state.activeSection = section;
 
-    // Si pasamos a global, el chat activo sí es el foro global
+    if (section === 'private') {
+        Object.keys(state.unreadCounts)
+            .filter(key => key.startsWith('private:'))
+            .forEach(key => delete state.unreadCounts[key]);
+        saveUnreadCounts();
+    }
     if (section === 'global' && openDefault) {
         state.activeChat = { type: 'global', id: 'global', name: 'Foro Global' };
+        saveUnreadCounts();
     } else {
-        // Al cambiar a 'private' o 'communities', NO dejamos un chat activo por defecto.
-        // Esto evita que el sistema crea que ya estás dentro de una conversación específica.
         state.activeChat = null;
     }
 
@@ -1230,16 +1234,6 @@ function renderMessage(message) {
         const dropdownMenu = document.createElement('div');
         dropdownMenu.className = 'message-context-dropdown';
 
-        const editOption = document.createElement('button');
-        editOption.type = 'button';
-        editOption.className = 'dropdown-item-btn';
-        editOption.textContent = 'Editar';
-        editOption.addEventListener('click', (e) => {
-            e.stopPropagation();
-            dropdownMenu.classList.remove('is-open');
-            startEditMessage(message.id, textElement);
-        });
-
         const deleteOption = document.createElement('button');
         deleteOption.type = 'button';
         deleteOption.className = 'dropdown-item-btn delete-action';
@@ -1260,7 +1254,7 @@ function renderMessage(message) {
             dropdownMenu.classList.toggle('is-open');
         });
 
-        dropdownMenu.append(editOption, deleteOption);
+        dropdownMenu.append(deleteOption);
         menuContainer.append(triggerBtn, dropdownMenu);
         messageElement.appendChild(menuContainer);
     }
@@ -1268,6 +1262,39 @@ function renderMessage(message) {
     elements.messages.appendChild(messageElement);
     applyConversationSearch();
     scrollToLastMessage();
+}
+/**
+ * Solicita eliminar un mensaje privado: confirma, notifica al servidor y borra localmente.
+ * @param {string} messageId Id del mensaje a eliminar.
+ */
+function requestDeleteMessage(messageId) {
+    if (!messageId) return;
+    const confirmed = window.confirm('¿Eliminar este mensaje privado?');
+    if (!confirmed) return;
+
+    // Notificamos al servidor (tipo utilizado: delete_private_message)
+    sendJson({ type: 'delete_private_message', payload: { id: messageId }, timestamp: new Date().toISOString() });
+
+    // Borrado optimista en el DOM
+    const el = elements.messages.querySelector(`[data-message-id="${messageId}"]`);
+    if (el) el.remove();
+
+    // Borrado en el estado local (conversaciones privadas)
+    let changed = false;
+    Object.values(state.privateConversations).forEach((conv) => {
+        const idx = (conv.messages || []).findIndex((m) => m.id === messageId);
+        if (idx !== -1) {
+            conv.messages.splice(idx, 1);
+            conv.updatedAt = new Date().toISOString();
+            changed = true;
+        }
+    });
+
+    if (changed) {
+        saveLocalState();
+        renderChatList();
+        renderNavigation();
+    }
 }
 /**
  * Obtiene etiqueta del autor según tipo de mensaje.
@@ -1402,7 +1429,36 @@ function receiveGroupMessage(payload, timestamp) {
         saveUnreadCounts();
     }
 }
+/**
+ * Maneja eliminación de mensaje privado enviado por el servidor.
+ * @param {{id:string}} payload
+ */
+function handlePrivateDelete(payload) {
+    const id = payload?.id;
+    if (!id) return;
 
+    // Eliminar del DOM
+    const el = elements.messages.querySelector(`[data-message-id="${id}"]`);
+    if (el) el.remove();
+
+    // Eliminar del estado local
+    let changed = false;
+    Object.values(state.privateConversations).forEach((conv) => {
+        const before = (conv.messages || []).length;
+        conv.messages = (conv.messages || []).filter((m) => m.id !== id);
+        if (conv.messages.length !== before) {
+            conv.updatedAt = new Date().toISOString();
+            changed = true;
+        }
+    });
+
+    if (changed) {
+        saveLocalState();
+        renderChatList();
+        renderNavigation();
+        if (state.activeChat?.type === 'private') renderActiveChatMessages();
+    }
+}
 /**
  * Sincroniza grupo activo si la lista recibida cambió.
  */

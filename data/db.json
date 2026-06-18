@@ -218,16 +218,16 @@
       "expiresAt": "2026-07-16T16:30:48.705Z"
     },
     {
-      "token": "fe0af5e5e214c7dada6c80ea7ff4a3329c97715fc00c72b094a7fcd4f58cfea7",
-      "userId": "d07b6fd5-c56d-4e49-a578-b61f791e0f60",
-      "createdAt": "2026-06-18T15:29:42.094Z",
-      "expiresAt": "2026-07-18T15:29:42.094Z"
-    },
-    {
       "token": "30c442ed35bf6fb4c58b6dc046e322bfdb762e63fddc6fcb97cda06e8befd1b7",
       "userId": "9f728713-e3f4-4a6f-8183-0e5625b43b45",
       "createdAt": "2026-06-18T15:52:12.077Z",
       "expiresAt": "2026-07-18T15:52:12.077Z"
+    },
+    {
+      "token": "d464a555993968553cd75cd6ee19f9bfbe7d04e50168165caa7df2c1781d65c1",
+      "userId": "d07b6fd5-c56d-4e49-a578-b61f791e0f60",
+      "createdAt": "2026-06-18T16:00:26.338Z",
+      "expiresAt": "2026-07-18T16:00:26.338Z"
     }
   ],
   "globalHistory": [
@@ -917,15 +917,6 @@
       "toNickname": "veca",
       "text": "sfasfas",
       "timestamp": "2026-06-18T15:52:47.961Z"
-    },
-    {
-      "id": "8578f893-3e73-447a-b2e0-56e0a33eb84e",
-      "fromId": "9f728713-e3f4-4a6f-8183-0e5625b43b45",
-      "fromNickname": "78KARLA",
-      "toId": "d07b6fd5-c56d-4e49-a578-b61f791e0f60",
-      "toNickname": "veca",
-      "text": "dfdagd",
-      "timestamp": "2026-06-18T15:52:56.687Z"
     }
   ],
   "groups": [
