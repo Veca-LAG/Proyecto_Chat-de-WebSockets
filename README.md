@@ -1,6 +1,8 @@
-# WebSocket Real-Time Chat
+# Ola — Chat WebSocket escalable
 
-Aplicación de chat en tiempo real desarrollada con **Node.js**, **WebSockets**, **HTML5**, **CSS3** y **JavaScript Vanilla**.
+Aplicación de chat en tiempo real desarrollada con **Node.js**, **WebSockets**, **Redis Pub/Sub**, **PostgreSQL**, **HTML5**, **CSS3** y **JavaScript Vanilla**.
+
+Esta versión conserva los cambios actuales del equipo: interfaz tipo Discord/WhatsApp, logo de Ola, login/registro, usuarios conectados, privados, comunidades, invitaciones, búsqueda, notificaciones, modo claro/oscuro y mejoras visuales. Además, reemplaza `data/db.json` por una arquitectura distribuida preparada para varios servidores.
 
 ## Integrantes
 
@@ -12,148 +14,224 @@ Aplicación de chat en tiempo real desarrollada con **Node.js**, **WebSockets**,
 
 ## Objetivo
 
-Desarrollar una aplicación de chat en tiempo real utilizando WebSockets para permitir comunicación bidireccional y persistente entre clientes y servidor.
+Implementar un chat en tiempo real mediante WebSockets que pueda ejecutarse en múltiples instancias de servidor, compartir eventos entre servidores y almacenar historial de mensajes de forma persistente.
 
-## Tecnologías utilizadas
-
-- Node.js
-- Librería `ws`
-- HTML5 semántico
-- CSS3 con variables y responsive design
-- JavaScript Vanilla con módulos ES
-
-## Estructura del proyecto
+## Arquitectura
 
 ```text
-chat-de-WebSockets/
-├── server.js
-├── package.json
-├── .gitignore
-├── README.md
-└── public/
-    ├── index.html
-    ├── style.css
-    ├── app.js
-    ├── modules/
-    │   ├── globalChat.js
-    │   ├── login.js
-    │   ├── users.js
-    │   ├── private.js
-    │   ├── history.js
-    │   └── typing.js
-    ├── emoji/
-    │   └── picker.js
-    └── sounds/
+Clientes Web ── WebSocket ── Servidor 1 :3000 ┐
+                                              ├── Redis Pub/Sub
+Clientes Web ── WebSocket ── Servidor 2 :3001 ┘
+                         │
+                         └── PostgreSQL
 ```
 
-## Complementos implementados
+## Qué incluye
 
-| Complemento | Descripción | Archivos principales |
-|---|---|---|
-| Login con nickname | Modal inicial que valida nickname antes de conectar al WebSocket. | `index.html`, `app.js` |
-| Lista de usuarios conectados | Sidebar actualizado en tiempo real con usuarios activos. | `users.js`, `app.js` |
-| Mensajes privados | Selección de usuario y envío privado sólo al destinatario. | `private.js`, `server.js` |
-| Historial de mensajes | El servidor guarda los últimos 50 mensajes globales en RAM y los envía al nuevo usuario. | `history.js`, `server.js` |
-| Indicador escribiendo | Evento `typing` con debounce de 1.5 segundos. | `typing.js`, `app.js` |
-| Modo oscuro/claro | Toggle visual con preferencia guardada en `localStorage`. | `style.css`, `app.js` |
-| Emoji picker | Selector básico de emojis sin librerías externas. | `picker.js` |
-| Responsive | Adaptación móvil con panel lateral colapsable. | `style.css`, `index.html` |
-| Navegación por secciones | Barra izquierda con Foro Global, Privados y Comunidades; cada sección carga su propia lista. | `index.html`, `app.js` |
-| Buscador por sección | Campo tipo WhatsApp para filtrar usuarios, privados o grupos según la sección activa. | `index.html`, `app.js` |
-| Búsqueda en conversación | Botón 🔍 para buscar texto en el historial visible y resaltar coincidencias. | `app.js`, `style.css` |
-| Eliminar conversación local | Menú ⋮ del chat con confirmación para limpiar el historial del lado del cliente. | `app.js` |
-| Comunidades / grupos | Crear grupo desde ⋮, seleccionar usuarios activos y enviar mensajes sólo a miembros. | `server.js`, `app.js` |
+| Requisito | Estado |
+|---|---|
+| WebSockets en tiempo real | Cumplido |
+| Varios servidores conectados entre sí | Cumplido con Redis Pub/Sub |
+| Historial mínimo de 300 mensajes | Cumplido con `MAX_HISTORY=300` |
+| Persistencia sin `db.json` | Cumplido con PostgreSQL |
+| Prueba de 100 usuarios | Incluida en `tests/load-test-100.js` |
+| Proyecto limpio para GitHub | Incluye `.gitignore`, hook y GitHub Action |
+| Conexión desde otras computadoras | Usa `HOST=0.0.0.0` |
 
-## Instrucciones de instalación y ejecución
+## Estructura principal
 
-1. Instalar dependencias:
+```text
+Proyecto_Chat_WebSockets_Escalable_Actualizado/
+├── server.js
+├── package.json
+├── docker-compose.yml
+├── .env.example
+├── .env.server2.example
+├── .env.server2-red.example
+├── public/
+│   ├── index.html
+│   ├── style.css
+│   ├── app.js
+│   ├── assets/img/logoOla.png
+│   ├── modules/
+│   ├── emoji/
+│   └── sounds/
+├── docs/
+├── scripts/
+├── tests/
+└── data/db.example.json
+```
+
+## Instalación
 
 ```bash
 npm install
 ```
 
-2. Iniciar el servidor:
+Copiar configuración:
+
+```bash
+cp .env.example .env
+```
+
+En Windows PowerShell:
+
+```powershell
+Copy-Item .env.example .env
+```
+
+Levantar PostgreSQL y Redis:
+
+```bash
+docker compose up -d
+```
+
+## Correr un servidor
 
 ```bash
 npm start
 ```
 
-3. Abrir en el navegador:
+Entrar desde la misma computadora:
 
 ```text
 http://localhost:3000
 ```
 
-## Pruebas recomendadas
+Entrar desde otra computadora de la red:
 
-- Abrir 2 o 3 pestañas en `http://localhost:3000`.
-- Ingresar un nickname diferente en cada pestaña.
-- Enviar un mensaje global y verificar que llegue a todos.
-- Seleccionar un usuario del panel lateral y enviar un mensaje privado.
-- Abrir una nueva pestaña y verificar que se cargue el historial.
-- Escribir sin enviar y verificar el indicador “está escribiendo...” en otra pestaña.
-- Activar modo oscuro y recargar para comprobar persistencia.
-- Probar vista móvil con DevTools en ancho menor a 768 px.
-
-## Protocolo WebSocket
-
-Todos los mensajes se envían como JSON con la estructura base:
-
-```json
-{
-  "type": "message",
-  "payload": {
-    "text": "Hola"
-  },
-  "timestamp": "2026-05-19T10:30:00.000Z"
-}
+```text
+http://IP-DE-LA-COMPUTADORA:3000
 ```
 
-Tipos principales utilizados:
+Ejemplo:
 
-- `join`
-- `message`
-- `private`
-- `typing`
-- `broadcast`
-- `private_msg`
-- `user_list`
-- `history`
-- `typing_status`
-- `system`
-- `create_group`
-- `group_list`
-- `group_message`
-- `group_msg`
+```text
+http://192.168.137.1:3000
+```
 
-## Licencia
+## Correr dos servidores en la misma computadora
 
-Este proyecto está bajo la Licencia MIT.
+Terminal 1:
 
-## Rediseño de interfaz tipo Discord / WhatsApp
+```bash
+npm run dev:server1
+```
 
-El frontend se reorganizó siguiendo el wireframe del equipo:
+Terminal 2:
 
-- Barra lateral izquierda de navegación rápida.
-- Sidebar de conversaciones con buscador y lista de usuarios conectados.
-- Área central para mensajes globales o privados.
-- Panel derecho con información del canal o usuario seleccionado.
-- Login inicial por nickname antes de abrir la conexión WebSocket.
-- Tema oscuro por defecto con cambio a tema claro desde el botón de la barra lateral.
-- Diseño responsive: en móvil el panel de usuarios se abre con botón hamburguesa.
+```bash
+npm run dev:server2
+```
 
-Los IDs principales de la interfaz se conservaron para mantener la integración con `app.js` y los módulos frontend.
+Entrar a:
 
+```text
+http://localhost:3000
+http://localhost:3001
+```
 
-## Requerimientos adicionales de layout implementados
+Ambos servidores usan el mismo Redis y PostgreSQL, por eso los usuarios pueden comunicarse aunque entren por puertos diferentes.
 
-- `REQ-NAV-01` a `REQ-NAV-04`: navegación lateral por Foro Global, Privados y Comunidades.
-- `REQ-LIST-01` a `REQ-LIST-05`: buscador tipo WhatsApp, menú ⋮ para crear grupos y listas separadas por sección.
-- `REQ-CHAT-01` a `REQ-CHAT-04`: área vacía sin conversación seleccionada, búsqueda interna y eliminación local de conversación.
-- `REQ-FORO-01` a `REQ-FORO-03`: foro global abierto, usuarios activos e historial de últimos 50 mensajes.
-- `REQ-COM-01` a `REQ-COM-03`: creación de comunidades con miembros activos y mensajes visibles sólo para sus miembros.
+## Correr dos servidores en computadoras diferentes
 
+### Computadora A
 
-## Nota de versión para Frontend Architect
+Esta computadora tendrá PostgreSQL, Redis y el servidor 1.
 
-Esta versión conserva la lógica funcional de navegación por secciones, privados, comunidades, búsqueda en conversación y eliminación local de historial, pero recupera el diseño visual tipo Discord/WhatsApp: barra lateral de iconos, lista de chats compacta, avatares circulares con estado y panel derecho tipo perfil.
+```bash
+docker compose up -d
+npm run dev:server1
+```
+
+Ejemplo de acceso:
+
+```text
+http://192.168.137.1:3000
+```
+
+### Computadora B
+
+Esta computadora tendrá el servidor 2. Debe apuntar a PostgreSQL y Redis de la computadora A.
+
+Usa como base:
+
+```text
+.env.server2-red.example
+```
+
+Cambia `192.168.137.1` por la IP real de la computadora A:
+
+```env
+DATABASE_URL=postgresql://chatuser:chatpass@192.168.137.1:5432/chatdb
+REDIS_URL=redis://:chat_redis_password@192.168.137.1:6379
+```
+
+Luego ejecuta:
+
+```bash
+npm start
+```
+
+## Prueba de 100 usuarios y 300 mensajes
+
+Con los servidores activos:
+
+```bash
+npm run test:100
+```
+
+También puedes configurar la prueba:
+
+```bash
+TEST_USERS=100 TEST_MESSAGES=300 npm run test:100
+```
+
+En Windows PowerShell:
+
+```powershell
+$env:TEST_USERS="100"; $env:TEST_MESSAGES="300"; npm run test:100
+```
+
+## Archivos que no deben subirse a GitHub
+
+No suban:
+
+```text
+node_modules/
+.env
+data/db.json
+logs/
+dist/
+build/
+coverage/
+```
+
+Este proyecto ya incluye `.gitignore`, pero si alguno de esos archivos ya fue agregado antes, quítenlo del control de Git con:
+
+```bash
+git rm -r --cached node_modules
+git rm --cached .env data/db.json
+```
+
+Instalar hook de pre-commit:
+
+```bash
+npm run setup:hooks
+```
+
+Revisar archivos sensibles:
+
+```bash
+npm run check:sensitive
+```
+
+## Documentación adicional
+
+- `docs/ARQUITECTURA_DISTRIBUIDA.md`
+- `docs/GUIA_GITHUB.md`
+- `docs/PRUEBAS_100_USUARIOS.md`
+
+## Nota importante
+
+`data/db.json` queda únicamente como referencia antigua y está bloqueado por `.gitignore`. La versión distribuida guarda datos en PostgreSQL y usa Redis para comunicación entre servidores.

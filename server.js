@@ -1,35 +1,42 @@
+require('dotenv').config();
+
 const http = require('http');
 const fs = require('fs');
 const path = require('path');
 const { randomUUID, randomBytes, scryptSync, timingSafeEqual } = require('crypto');
 const WebSocket = require('ws');
+const { Pool } = require('pg');
+const { createClient } = require('redis');
 
-const PORT = process.env.PORT || 3000;
+const HOST = process.env.HOST || '0.0.0.0';
+const PORT = Number(process.env.PORT || 3000);
+const SERVER_ID = process.env.SERVER_ID || `server-${PORT}-${process.pid}`;
 const PUBLIC_DIR = path.join(__dirname, 'public');
-const DATA_DIR = path.join(__dirname, 'data');
-const DB_FILE = path.join(DATA_DIR, 'db.json');
-const MAX_HISTORY = 50;
+const MAX_HISTORY = Number(process.env.MAX_HISTORY || 300);
 const MAX_NICKNAME_LENGTH = 20;
 const MAX_NAME_LENGTH = 40;
-const MAX_MESSAGE_LENGTH = 300;
+const MAX_MESSAGE_LENGTH = Number(process.env.MAX_MESSAGE_LENGTH || 300);
+const RATE_LIMIT_WINDOW_MS = Number(process.env.RATE_LIMIT_WINDOW_MS || 10_000);
+const RATE_LIMIT_MAX_MESSAGES = Number(process.env.RATE_LIMIT_MAX_MESSAGES || 30);
+const HEARTBEAT_INTERVAL_MS = Number(process.env.HEARTBEAT_INTERVAL_MS || 30_000);
 const MIN_PASSWORD_LENGTH = 6;
 const SESSION_DAYS = 30;
+const INVITE_SECONDS = 24 * 60 * 60;
+const REDIS_CHANNEL = 'chat:events';
 
-const users = new Map(); // ws -> usuario público autenticado
-const socketsByUserId = new Map(); // userId -> Set<WebSocket>
-const inviteTokens = new Map(); // token -> groupId
-const messageCooldowns = new Map(); // userId -> timestamp del último mensaje para limitar spam
+const DATABASE_URL = process.env.DATABASE_URL || 'postgresql://chatuser:chatpass@localhost:5432/chatdb';
+const REDIS_URL = process.env.REDIS_URL || 'redis://localhost:6379';
 
-let db = loadDatabase();
+const pool = new Pool({ connectionString: DATABASE_URL });
+const redis = createClient({ url: REDIS_URL });
+const subscriber = redis.duplicate();
+
+const users = new Map(); // ws -> usuario público autenticado en ESTE servidor
+const socketsByUserId = new Map(); // userId -> Set<WebSocket> en ESTE servidor
 
 const server = http.createServer(handleHttpRequest);
 const wss = new WebSocket.Server({ server });
 
-/**
- * Atiende peticiones HTTP y sirve archivos estáticos desde public/.
- * @param {http.IncomingMessage} req Petición del navegador.
- * @param {http.ServerResponse} res Respuesta HTTP.
- */
 function handleHttpRequest(req, res) {
     const requestedPath = req.url.split('?')[0] === '/' ? '/index.html' : req.url.split('?')[0];
     const safePath = path.normalize(decodeURIComponent(requestedPath)).replace(/^([.][.][/\\])+/, '');
@@ -47,17 +54,11 @@ function handleHttpRequest(req, res) {
             res.end('Archivo no encontrado');
             return;
         }
-
         res.writeHead(200, { 'Content-Type': getContentType(filePath) });
         res.end(content, 'utf-8');
     });
 }
 
-/**
- * Devuelve el tipo MIME de acuerdo con la extensión del archivo.
- * @param {string} filePath Ruta del archivo.
- * @returns {string} Tipo de contenido HTTP.
- */
 function getContentType(filePath) {
     const extension = path.extname(filePath).toLowerCase();
     const types = {
@@ -65,103 +66,26 @@ function getContentType(filePath) {
         '.css': 'text/css; charset=utf-8',
         '.js': 'application/javascript; charset=utf-8',
         '.json': 'application/json; charset=utf-8',
-        '.mp3': 'audio/mpeg'
+        '.mp3': 'audio/mpeg',
+        '.png': 'image/png',
+        '.jpg': 'image/jpeg',
+        '.jpeg': 'image/jpeg',
+        '.webp': 'image/webp',
+        '.svg': 'image/svg+xml; charset=utf-8',
+        '.ico': 'image/x-icon'
     };
-
     return types[extension] || 'application/octet-stream';
 }
 
-/**
- * Carga la base de datos JSON del proyecto.
- * @returns {object} Datos persistidos.
- */
-function loadDatabase() {
-    try {
-        if (!fs.existsSync(DATA_DIR)) {
-            fs.mkdirSync(DATA_DIR, { recursive: true });
-        }
-
-        if (!fs.existsSync(DB_FILE)) {
-            const initialData = createEmptyDatabase();
-            fs.writeFileSync(DB_FILE, JSON.stringify(initialData, null, 2));
-            return initialData;
-        }
-
-        const parsed = JSON.parse(fs.readFileSync(DB_FILE, 'utf8'));
-        return normalizeDatabase(parsed);
-    } catch (error) {
-        console.error('No se pudo cargar data/db.json. Se usará una base vacía.', error);
-        return createEmptyDatabase();
-    }
-}
-
-/**
- * Crea la estructura inicial de almacenamiento.
- * @returns {object} Base de datos vacía.
- */
-function createEmptyDatabase() {
-    return {
-        users: [],
-        sessions: [],
-        globalHistory: [],
-        privateMessages: [],
-        groups: []
-    };
-}
-
-/**
- * Garantiza que existan las colecciones necesarias.
- * @param {object} data Datos leídos.
- * @returns {object} Datos normalizados.
- */
-function normalizeDatabase(data) {
-    return {
-        users: Array.isArray(data.users) ? data.users : [],
-        sessions: Array.isArray(data.sessions) ? data.sessions : [],
-        globalHistory: Array.isArray(data.globalHistory) ? data.globalHistory : [],
-        privateMessages: Array.isArray(data.privateMessages) ? data.privateMessages : [],
-        groups: Array.isArray(data.groups) ? data.groups : []
-    };
-}
-
-/**
- * Guarda la base de datos JSON de forma persistente.
- */
-function saveDatabase() {
-    if (!fs.existsSync(DATA_DIR)) {
-        fs.mkdirSync(DATA_DIR, { recursive: true });
-    }
-
-    fs.writeFile(
-        DB_FILE,
-        JSON.stringify(db, null, 2),
-        (error) => {
-            if (error) {
-                console.error('Error guardando DB:', error);
-            }
-        }
-    );
-}
-
-/**
- * Registra eventos con timestamp legible.
- * @param {string} event Texto del evento.
- */
 function logEvent(event) {
     const time = new Intl.DateTimeFormat('es-MX', {
         hour: '2-digit',
         minute: '2-digit',
         second: '2-digit'
     }).format(new Date());
-    console.log(`[${time}] ${event}`);
+    console.log(`[${time}] [${SERVER_ID}] ${event}`);
 }
 
-/**
- * Elimina etiquetas HTML y recorta un valor de texto.
- * @param {string} value Texto original.
- * @param {number} maxLength Longitud máxima.
- * @returns {string} Texto sanitizado.
- */
 function sanitizeText(value, maxLength) {
     return String(value || '')
         .replace(/<[^>]*>?/gm, '')
@@ -169,372 +93,379 @@ function sanitizeText(value, maxLength) {
         .slice(0, maxLength);
 }
 
-/**
- * Normaliza un nickname para comparaciones únicas.
- * @param {string} nickname Nickname original.
- * @returns {string} Nickname normalizado.
- */
 function normalizeNickname(nickname) {
     return String(nickname || '').trim().toLowerCase();
 }
 
-/**
- * Hashea una contraseña usando scrypt y salt aleatorio.
- * @param {string} password Contraseña en texto plano.
- * @returns {{salt:string,hash:string}} Salt y hash en hexadecimal.
- */
 function hashPassword(password) {
     const salt = randomBytes(16).toString('hex');
     const hash = scryptSync(password, salt, 64).toString('hex');
     return { salt, hash };
 }
 
-/**
- * Verifica una contraseña contra el hash almacenado.
- * @param {string} password Contraseña ingresada.
- * @param {object} user Usuario almacenado.
- * @returns {boolean} True si coincide.
- */
 function verifyPassword(password, user) {
-    if (!user?.passwordSalt || !user?.passwordHash) {
-        return false;
-    }
-
+    if (!user?.passwordSalt || !user?.passwordHash) return false;
     const testHash = scryptSync(password, user.passwordSalt, 64);
     const storedHash = Buffer.from(user.passwordHash, 'hex');
-
-    if (storedHash.length !== testHash.length) {
-        return false;
-    }
-
+    if (storedHash.length !== testHash.length) return false;
     return timingSafeEqual(storedHash, testHash);
 }
 
-/**
- * Genera un código público único para mostrar en el perfil.
- * @returns {string} Código de usuario.
- */
-function generateUserCode() {
-    let code;
-    do {
-        code = `USR-${Math.floor(100000 + Math.random() * 900000)}`;
-    } while (db.users.some((user) => user.code === code));
-
-    return code;
-}
-
-/**
- * Devuelve la versión pública de un usuario sin contraseña.
- * @param {object} user Usuario almacenado.
- * @returns {object|null} Usuario público.
- */
-function toPublicUser(user) {
-    if (!user) {
-        return null;
-    }
-
-    return {
-        id: user.id,
-        code: user.code,
-        firstName: user.firstName,
-        lastName: user.lastName,
-        nickname: user.nickname,
-        isOnline: socketsByUserId.has(user.id)
-    };
-}
-
-/**
- * Envía datos JSON a un socket si se encuentra abierto.
- * @param {WebSocket} ws Cliente WebSocket.
- * @param {object} data Mensaje a enviar.
- */
 function sendJson(ws, data) {
     if (ws.readyState === WebSocket.OPEN) {
         ws.send(JSON.stringify(data));
     }
 }
 
-/**
- * Envía un mensaje a todos los clientes conectados.
- * @param {object} data Mensaje JSON.
- * @param {WebSocket|null} excludeWs Cliente a excluir opcionalmente.
- */
-function broadcast(data, excludeWs = null) {
+function checkRateLimit(ws) {
+    const now = Date.now();
+    if (!ws.rateLimit) {
+        ws.rateLimit = { windowStart: now, count: 0 };
+    }
+
+    if (now - ws.rateLimit.windowStart > RATE_LIMIT_WINDOW_MS) {
+        ws.rateLimit.windowStart = now;
+        ws.rateLimit.count = 0;
+    }
+
+    ws.rateLimit.count += 1;
+    return ws.rateLimit.count <= RATE_LIMIT_MAX_MESSAGES;
+}
+
+function rejectRateLimited(ws) {
+    sendJson(ws, {
+        type: 'error',
+        payload: { text: 'Estás enviando demasiados mensajes. Espera unos segundos.' },
+        timestamp: new Date().toISOString()
+    });
+}
+
+function broadcastLocal(data, excludeConnectionId = null) {
     wss.clients.forEach((client) => {
-        if (client !== excludeWs && client.readyState === WebSocket.OPEN) {
+        if (client.readyState === WebSocket.OPEN && client.connectionId !== excludeConnectionId) {
             client.send(JSON.stringify(data));
         }
     });
 }
 
-/**
- * Obtiene usuarios activos sin duplicar pestañas del mismo usuario.
- * @returns {Array<object>} Lista de usuarios conectados.
- */
-function getUserList() {
-    return Array.from(socketsByUserId.keys())
-        .map((userId) => toPublicUser(findUserById(userId)))
-        .filter(Boolean);
-}
-
-/**
- * Busca usuario por ID.
- * @param {string} userId ID del usuario.
- * @returns {object|null} Usuario encontrado.
- */
-function findUserById(userId) {
-    return db.users.find((user) => user.id === userId) || null;
-}
-
-/**
- * Busca usuario por nickname.
- * @param {string} nickname Nickname ingresado.
- * @returns {object|null} Usuario encontrado.
- */
-function findUserByNickname(nickname) {
-    const target = normalizeNickname(nickname);
-    return db.users.find((user) => normalizeNickname(user.nickname) === target) || null;
-}
-
-/**
- * Obtiene sockets activos de un usuario.
- * @param {string} userId ID del usuario.
- * @returns {Set<WebSocket>} Sockets activos.
- */
 function getSocketsForUser(userId) {
     return socketsByUserId.get(userId) || new Set();
 }
 
-/**
- * Envía un mensaje a todos los dispositivos activos de un usuario.
- * @param {string} userId ID destinatario.
- * @param {object} data Mensaje JSON.
- * @param {WebSocket|null} excludeWs Socket opcional a excluir.
- */
-function sendToUser(userId, data, excludeWs = null) {
+function sendToLocalUser(userId, data, excludeConnectionId = null) {
     getSocketsForUser(userId).forEach((client) => {
-        if (client !== excludeWs) {
+        if (client.connectionId !== excludeConnectionId) {
             sendJson(client, data);
         }
     });
 }
 
-/**
- * Crea una sesión persistente para un usuario.
- * @param {string} userId ID del usuario.
- * @returns {string} Token de sesión.
- */
-function createSession(userId) {
-    const token = randomBytes(32).toString('hex');
-    const now = Date.now();
-    const expiresAt = new Date(now + SESSION_DAYS * 24 * 60 * 60 * 1000).toISOString();
+function toPublicUser(row, online = false) {
+    if (!row) return null;
+    return {
+        id: row.id,
+        code: row.code,
+        firstName: row.first_name ?? row.firstName,
+        lastName: row.last_name ?? row.lastName,
+        nickname: row.nickname,
+        isOnline: online
+    };
+}
 
-    db.sessions = db.sessions.filter((session) => new Date(session.expiresAt).getTime() > now);
-    db.sessions.push({ token, userId, createdAt: new Date(now).toISOString(), expiresAt });
-    saveDatabase();
+async function initDatabase() {
+    await pool.query(`CREATE EXTENSION IF NOT EXISTS "pgcrypto";`);
+    await pool.query(`
+        CREATE TABLE IF NOT EXISTS users (
+            id UUID PRIMARY KEY,
+            code TEXT NOT NULL UNIQUE,
+            first_name TEXT NOT NULL,
+            last_name TEXT NOT NULL,
+            nickname TEXT NOT NULL UNIQUE,
+            nickname_normalized TEXT NOT NULL UNIQUE,
+            password_salt TEXT NOT NULL,
+            password_hash TEXT NOT NULL,
+            created_at TIMESTAMPTZ NOT NULL,
+            updated_at TIMESTAMPTZ NOT NULL
+        );
+    `);
+    await pool.query(`
+        CREATE TABLE IF NOT EXISTS sessions (
+            token TEXT PRIMARY KEY,
+            user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+            created_at TIMESTAMPTZ NOT NULL,
+            expires_at TIMESTAMPTZ NOT NULL
+        );
+    `);
+    await pool.query(`
+        CREATE TABLE IF NOT EXISTS global_messages (
+            id UUID PRIMARY KEY,
+            from_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+            from_nickname TEXT NOT NULL,
+            text TEXT NOT NULL,
+            created_at TIMESTAMPTZ NOT NULL
+        );
+    `);
+    await pool.query(`
+        CREATE TABLE IF NOT EXISTS private_messages (
+            id UUID PRIMARY KEY,
+            from_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+            from_nickname TEXT NOT NULL,
+            to_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+            to_nickname TEXT NOT NULL,
+            text TEXT NOT NULL,
+            created_at TIMESTAMPTZ NOT NULL
+        );
+    `);
+    await pool.query(`
+        CREATE TABLE IF NOT EXISTS groups (
+            id UUID PRIMARY KEY,
+            name TEXT NOT NULL,
+            created_by UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+            created_at TIMESTAMPTZ NOT NULL
+        );
+    `);
+    await pool.query(`
+        CREATE TABLE IF NOT EXISTS group_members (
+            group_id UUID NOT NULL REFERENCES groups(id) ON DELETE CASCADE,
+            user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+            PRIMARY KEY (group_id, user_id)
+        );
+    `);
+    await pool.query(`
+        CREATE TABLE IF NOT EXISTS group_messages (
+            id UUID PRIMARY KEY,
+            group_id UUID NOT NULL REFERENCES groups(id) ON DELETE CASCADE,
+            group_name TEXT NOT NULL,
+            from_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+            from_nickname TEXT NOT NULL,
+            text TEXT NOT NULL,
+            created_at TIMESTAMPTZ NOT NULL
+        );
+    `);
+
+    await pool.query('CREATE INDEX IF NOT EXISTS idx_global_messages_created_at ON global_messages(created_at DESC);');
+    await pool.query('CREATE INDEX IF NOT EXISTS idx_private_messages_users ON private_messages(from_id, to_id, created_at DESC);');
+    await pool.query('CREATE INDEX IF NOT EXISTS idx_group_messages_group_created ON group_messages(group_id, created_at DESC);');
+}
+
+async function generateUserCode() {
+    let code;
+    let exists = true;
+    while (exists) {
+        code = `USR-${Math.floor(100000 + Math.random() * 900000)}`;
+        const result = await pool.query('SELECT 1 FROM users WHERE code = $1 LIMIT 1', [code]);
+        exists = result.rowCount > 0;
+    }
+    return code;
+}
+
+async function findUserById(userId) {
+    const result = await pool.query('SELECT * FROM users WHERE id = $1 LIMIT 1', [userId]);
+    return result.rows[0] || null;
+}
+
+async function findUserByNickname(nickname) {
+    const result = await pool.query('SELECT * FROM users WHERE nickname_normalized = $1 LIMIT 1', [normalizeNickname(nickname)]);
+    return result.rows[0] || null;
+}
+
+async function createSession(userId) {
+    const token = randomBytes(32).toString('hex');
+    const now = new Date();
+    const expiresAt = new Date(now.getTime() + SESSION_DAYS * 24 * 60 * 60 * 1000);
+    await pool.query('DELETE FROM sessions WHERE expires_at < NOW()');
+    await pool.query(
+        'INSERT INTO sessions(token, user_id, created_at, expires_at) VALUES($1, $2, $3, $4)',
+        [token, userId, now.toISOString(), expiresAt.toISOString()]
+    );
     return token;
 }
 
-/**
- * Obtiene usuario por token de sesión vigente.
- * @param {string} token Token persistido en cliente.
- * @returns {object|null} Usuario autenticado.
- */
-function findUserBySessionToken(token) {
+async function findUserBySessionToken(token) {
     const cleanToken = sanitizeText(token, 200);
-    const now = Date.now();
-    const session = db.sessions.find((item) => item.token === cleanToken && new Date(item.expiresAt).getTime() > now);
-    return session ? findUserById(session.userId) : null;
+    const result = await pool.query(
+        `SELECT users.*
+         FROM sessions
+         INNER JOIN users ON users.id = sessions.user_id
+         WHERE sessions.token = $1 AND sessions.expires_at > NOW()
+         LIMIT 1`,
+        [cleanToken]
+    );
+    return result.rows[0] || null;
 }
 
-/**
- * Elimina un token de sesión.
- * @param {string} token Token a invalidar.
- */
-function removeSession(token) {
-    db.sessions = db.sessions.filter((session) => session.token !== token);
-    saveDatabase();
+async function removeSession(token) {
+    await pool.query('DELETE FROM sessions WHERE token = $1', [sanitizeText(token, 200)]);
 }
 
-/**
- * Asocia un WebSocket a una cuenta autenticada.
- * @param {WebSocket} ws Socket autenticado.
- * @param {object} user Usuario almacenado.
- * @param {string} sessionToken Token vigente.
- */
-function attachAuthenticatedUser(ws, user, sessionToken) {
-    detachSocket(ws, false);
-
-    const wasOffline = !socketsByUserId.has(user.id);
-    const publicUser = toPublicUser(user);
-    users.set(ws, publicUser);
-
-    if (!socketsByUserId.has(user.id)) {
-        socketsByUserId.set(user.id, new Set());
+async function getOnlineUserIds() {
+    const ids = new Set();
+    for await (const key of redis.scanIterator({ MATCH: 'presence:user:*', COUNT: 100 })) {
+        const onlineServers = await redis.sCard(key);
+        if (onlineServers > 0) ids.add(key.replace('presence:user:', ''));
     }
-    socketsByUserId.get(user.id).add(ws);
-
-    const authenticatedUser = toPublicUser(user);
-    sendJson(ws, {
-        type: 'auth_success',
-        payload: {
-            sessionToken,
-            user: authenticatedUser
-        },
-        timestamp: new Date().toISOString()
-    });
-
-    sendInitialState(ws, authenticatedUser);
-
-    if (wasOffline) {
-        broadcast({
-            type: 'system',
-            payload: { text: `${user.nickname} se ha conectado 🟢` },
-            timestamp: new Date().toISOString()
-        });
-        logEvent(`${user.nickname} conectado`);
-    }
-
-    broadcastUserList();
-    broadcastGroupLists();
+    return Array.from(ids);
 }
 
-/**
- * Desasocia un socket y emite desconexión si era el último dispositivo del usuario.
- * @param {WebSocket} ws Socket a remover.
- * @param {boolean} notify Indica si debe notificar al resto.
- */
-function detachSocket(ws, notify = true) {
-    const user = users.get(ws);
-    if (!user) {
-        return;
-    }
+async function getUserList() {
+    const onlineIds = await getOnlineUserIds();
+    if (!onlineIds.length) return [];
+    const result = await pool.query(
+        'SELECT id, code, first_name, last_name, nickname FROM users WHERE id = ANY($1::uuid[]) ORDER BY nickname ASC',
+        [onlineIds]
+    );
+    return result.rows.map((row) => toPublicUser(row, true));
+}
 
-    users.delete(ws);
-    const sockets = socketsByUserId.get(user.id);
-    if (sockets) {
-        sockets.delete(ws);
-        if (sockets.size === 0) {
-            socketsByUserId.delete(user.id);
-            if (notify) {
-                broadcast({
-                    type: 'system',
-                    payload: { text: `${user.nickname} se ha desconectado 🔴` },
-                    timestamp: new Date().toISOString()
-                });
-                broadcastUserList();
-                broadcastGroupLists();
-                logEvent(`${user.nickname} desconectado`);
-            }
-        }
+async function markUserOnline(userId) {
+    const wasOnline = (await redis.sCard(`presence:user:${userId}`)) > 0;
+    await redis.sAdd(`presence:user:${userId}`, SERVER_ID);
+    return wasOnline;
+}
+
+async function markUserOfflineFromThisServer(userId) {
+    await redis.sRem(`presence:user:${userId}`, SERVER_ID);
+    const remaining = await redis.sCard(`presence:user:${userId}`);
+    if (remaining === 0) await redis.del(`presence:user:${userId}`);
+    return remaining;
+}
+
+async function cleanupServerPresence() {
+    for await (const key of redis.scanIterator({ MATCH: 'presence:user:*', COUNT: 100 })) {
+        await redis.sRem(key, SERVER_ID);
+        const remaining = await redis.sCard(key);
+        if (remaining === 0) await redis.del(key);
     }
 }
 
-/**
- * Envía estado inicial al cliente después de autenticarse.
- * @param {WebSocket} ws Socket autenticado.
- * @param {object} publicUser Usuario público.
- */
-function sendInitialState(ws, publicUser) {
+async function publishCluster(event) {
+    await redis.publish(REDIS_CHANNEL, JSON.stringify({ ...event, emittedAt: new Date().toISOString() }));
+}
+
+async function sendInitialState(ws, publicUser) {
+    const globalHistory = await getGlobalHistory();
     sendJson(ws, {
         type: 'history',
-        payload: { messages: db.globalHistory },
+        payload: { messages: globalHistory },
         timestamp: new Date().toISOString()
     });
 
     sendJson(ws, {
         type: 'group_list',
-        payload: { groups: getGroupsForUser(publicUser.id) },
+        payload: { groups: await getGroupsForUser(publicUser.id) },
         timestamp: new Date().toISOString()
     });
 
     sendJson(ws, {
         type: 'private_conversations',
-        payload: { conversations: getPrivateConversationsForUser(publicUser.id) },
+        payload: { conversations: await getPrivateConversationsForUser(publicUser.id) },
         timestamp: new Date().toISOString()
     });
 }
 
-/**
- * Emite la lista actualizada de usuarios a todos los clientes.
- */
-function broadcastUserList() {
-    broadcast({
-        type: 'user_list',
-        payload: { users: getUserList() },
-        timestamp: new Date().toISOString()
-    });
+async function getGlobalHistory() {
+    const result = await pool.query(
+        `SELECT id, from_id, from_nickname, text, created_at
+         FROM global_messages
+         ORDER BY created_at DESC
+         LIMIT $1`,
+        [MAX_HISTORY]
+    );
+
+    return result.rows.reverse().map((row) => ({
+        id: row.id,
+        fromId: row.from_id,
+        from: row.from_nickname,
+        text: row.text,
+        timestamp: row.created_at.toISOString()
+    }));
 }
 
-/**
- * Obtiene los grupos visibles para un usuario.
- * @param {string} userId ID público del usuario.
- * @returns {Array<object>} Lista de grupos visibles.
- */
-function getGroupsForUser(userId) {
-    return db.groups
-        .filter((group) => Array.isArray(group.memberIds) && group.memberIds.includes(userId))
-        .map((group) => ({
+async function getGroupsForUser(userId) {
+    const groupsResult = await pool.query(
+        `SELECT g.id, g.name, g.created_by, g.created_at
+         FROM groups g
+         INNER JOIN group_members gm ON gm.group_id = g.id
+         WHERE gm.user_id = $1
+         ORDER BY g.created_at DESC`,
+        [userId]
+    );
+
+    const groups = [];
+    for (const group of groupsResult.rows) {
+        const membersResult = await pool.query(
+            `SELECT u.id, u.code, u.first_name, u.last_name, u.nickname
+             FROM group_members gm
+             INNER JOIN users u ON u.id = gm.user_id
+             WHERE gm.group_id = $1
+             ORDER BY u.nickname ASC`,
+            [group.id]
+        );
+        const onlineIds = new Set(await getOnlineUserIds());
+        const historyResult = await pool.query(
+            `SELECT id, group_id, group_name, from_id, from_nickname, text, created_at
+             FROM group_messages
+             WHERE group_id = $1
+             ORDER BY created_at DESC
+             LIMIT $2`,
+            [group.id, MAX_HISTORY]
+        );
+
+        groups.push({
             id: group.id,
             name: group.name,
-            createdBy: group.createdBy,
-            createdAt: group.createdAt,
-            members: group.memberIds.map((memberId) => toPublicUser(findUserById(memberId))).filter(Boolean),
-            history: Array.isArray(group.history) ? group.history.slice(-MAX_HISTORY) : []
-        }));
-}
-
-/**
- * Envía la lista de grupos actualizada a todos los usuarios conectados.
- */
-function broadcastGroupLists() {
-    users.forEach((user, client) => {
-        sendJson(client, {
-            type: 'group_list',
-            payload: { groups: getGroupsForUser(user.id) },
-            timestamp: new Date().toISOString()
-        });
-    });
-}
-
-/**
- * Obtiene conversaciones privadas persistidas para un usuario.
- * @param {string} userId ID del usuario.
- * @returns {Array<object>} Conversaciones privadas.
- */
-function getPrivateConversationsForUser(userId) {
-    const grouped = new Map();
-
-    db.privateMessages
-        .filter((message) => message.fromId === userId || message.toId === userId)
-        .forEach((message) => {
-            const otherId = message.fromId === userId ? message.toId : message.fromId;
-            const otherUser = toPublicUser(findUserById(otherId));
-            if (!otherUser) {
-                return;
-            }
-
-            if (!grouped.has(otherId)) {
-                grouped.set(otherId, {
-                    user: otherUser,
-                    messages: [],
-                    updatedAt: message.timestamp
-                });
-            }
-
-            grouped.get(otherId).messages.push({
+            createdBy: group.created_by,
+            createdAt: group.created_at.toISOString(),
+            members: membersResult.rows.map((row) => toPublicUser(row, onlineIds.has(row.id))),
+            history: historyResult.rows.reverse().map((message) => ({
                 id: message.id,
-                fromId: message.fromId,
-                from: message.fromNickname,
-                toId: message.toId,
-                to: message.toNickname,
+                groupId: message.group_id,
+                groupName: message.group_name,
+                fromId: message.from_id,
+                from: message.from_nickname,
                 text: message.text,
-                timestamp: message.timestamp,
-                kind: 'private',
-                direction: message.fromId === userId ? 'out' : 'in'
-            });
-            grouped.get(otherId).updatedAt = message.timestamp;
+                timestamp: message.created_at.toISOString()
+            }))
         });
+    }
+    return groups;
+}
+
+async function getPrivateConversationsForUser(userId) {
+    const result = await pool.query(
+        `SELECT * FROM private_messages
+         WHERE from_id = $1 OR to_id = $1
+         ORDER BY created_at ASC`,
+        [userId]
+    );
+
+    const grouped = new Map();
+    for (const message of result.rows) {
+        const otherId = message.from_id === userId ? message.to_id : message.from_id;
+        if (!grouped.has(otherId)) {
+            const otherUser = await findUserById(otherId);
+            if (!otherUser) continue;
+            grouped.set(otherId, {
+                user: toPublicUser(otherUser, (await getOnlineUserIds()).includes(otherId)),
+                messages: [],
+                updatedAt: message.created_at.toISOString()
+            });
+        }
+
+        const conversation = grouped.get(otherId);
+        conversation.messages.push({
+            id: message.id,
+            fromId: message.from_id,
+            from: message.from_nickname,
+            toId: message.to_id,
+            to: message.to_nickname,
+            text: message.text,
+            timestamp: message.created_at.toISOString(),
+            kind: 'private',
+            direction: message.from_id === userId ? 'out' : 'in'
+        });
+        conversation.updatedAt = message.created_at.toISOString();
+    }
 
     return Array.from(grouped.values())
         .map((conversation) => ({
@@ -544,21 +475,78 @@ function getPrivateConversationsForUser(userId) {
         .sort((a, b) => new Date(b.updatedAt || 0) - new Date(a.updatedAt || 0));
 }
 
-/**
- * Guarda un mensaje global persistente, limitando a los últimos 50.
- * @param {object} message Mensaje global.
- */
-function saveHistory(message) {
-    db.globalHistory.push(message);
-    db.globalHistory = db.globalHistory.slice(-MAX_HISTORY);
-    saveDatabase();
+async function broadcastUserListLocal() {
+    broadcastLocal({
+        type: 'user_list',
+        payload: { users: await getUserList() },
+        timestamp: new Date().toISOString()
+    });
 }
 
-/**
- * Valida datos de registro.
- * @param {object} payload Datos recibidos.
- * @returns {{valid:boolean,data:object,error:string}} Resultado.
- */
+async function broadcastGroupListsLocal() {
+    for (const [client, user] of users.entries()) {
+        sendJson(client, {
+            type: 'group_list',
+            payload: { groups: await getGroupsForUser(user.id) },
+            timestamp: new Date().toISOString()
+        });
+    }
+}
+
+async function attachAuthenticatedUser(ws, userRow, sessionToken) {
+    await detachSocket(ws, false);
+
+    const wasOfflineLocal = !socketsByUserId.has(userRow.id);
+    const publicUser = toPublicUser(userRow, true);
+    users.set(ws, publicUser);
+
+    if (!socketsByUserId.has(userRow.id)) socketsByUserId.set(userRow.id, new Set());
+    socketsByUserId.get(userRow.id).add(ws);
+
+    const wasOnlineGlobal = await markUserOnline(userRow.id);
+
+    sendJson(ws, {
+        type: 'auth_success',
+        payload: { sessionToken, user: publicUser },
+        timestamp: new Date().toISOString()
+    });
+
+    await sendInitialState(ws, publicUser);
+
+    if (wasOfflineLocal) {
+        logEvent(`${userRow.nickname} conectado`);
+    }
+
+    if (!wasOnlineGlobal) {
+        await publishCluster({ event: 'system', payload: { text: `${userRow.nickname} se ha conectado 🟢` } });
+    }
+    await publishCluster({ event: 'presence_update' });
+    await publishCluster({ event: 'group_lists_update' });
+}
+
+async function detachSocket(ws, notify = true) {
+    const user = users.get(ws);
+    if (!user) return;
+
+    users.delete(ws);
+    const sockets = socketsByUserId.get(user.id);
+    if (sockets) {
+        sockets.delete(ws);
+        if (sockets.size === 0) {
+            socketsByUserId.delete(user.id);
+            const remainingGlobalConnections = await markUserOfflineFromThisServer(user.id);
+            if (notify) {
+                if (remainingGlobalConnections === 0) {
+                    await publishCluster({ event: 'system', payload: { text: `${user.nickname} se ha desconectado 🔴` } });
+                }
+                await publishCluster({ event: 'presence_update' });
+                await publishCluster({ event: 'group_lists_update' });
+                logEvent(`${user.nickname} desconectado`);
+            }
+        }
+    }
+}
+
 function validateRegisterPayload(payload) {
     const firstName = sanitizeText(payload.firstName, MAX_NAME_LENGTH);
     const lastName = sanitizeText(payload.lastName, MAX_NAME_LENGTH);
@@ -566,31 +554,13 @@ function validateRegisterPayload(payload) {
     const password = String(payload.password || '');
     const passwordConfirm = payload.passwordConfirm === undefined ? password : String(payload.passwordConfirm || '');
 
-    if (!firstName || !lastName || !nickname) {
-        return { valid: false, data: {}, error: 'Nombre, apellido y nickname son obligatorios.' };
-    }
-
-    if (password.length < MIN_PASSWORD_LENGTH) {
-        return { valid: false, data: {}, error: `La contraseña debe tener al menos ${MIN_PASSWORD_LENGTH} caracteres.` };
-    }
-
-    if (password !== passwordConfirm) {
-        return { valid: false, data: {}, error: 'Las contraseñas no coinciden.' };
-    }
-
-    if (findUserByNickname(nickname)) {
-        return { valid: false, data: {}, error: 'Ese nickname ya está registrado. Usa otro o inicia sesión.' };
-    }
-
+    if (!firstName || !lastName || !nickname) return { valid: false, data: {}, error: 'Nombre, apellido y nickname son obligatorios.' };
+    if (password.length < MIN_PASSWORD_LENGTH) return { valid: false, data: {}, error: `La contraseña debe tener al menos ${MIN_PASSWORD_LENGTH} caracteres.` };
+    if (password !== passwordConfirm) return { valid: false, data: {}, error: 'Las contraseñas no coinciden.' };
     return { valid: true, data: { firstName, lastName, nickname, password }, error: '' };
 }
 
-/**
- * Registra una cuenta nueva y autentica el socket.
- * @param {WebSocket} ws Cliente solicitante.
- * @param {object} payload Datos de cuenta.
- */
-function handleRegister(ws, payload) {
+async function handleRegister(ws, payload) {
     const validation = validateRegisterPayload(payload);
     if (!validation.valid) {
         sendJson(ws, { type: 'auth_error', payload: { text: validation.error }, timestamp: new Date().toISOString() });
@@ -598,11 +568,17 @@ function handleRegister(ws, payload) {
     }
 
     const { firstName, lastName, nickname, password } = validation.data;
+    const existing = await findUserByNickname(nickname);
+    if (existing) {
+        sendJson(ws, { type: 'auth_error', payload: { text: 'Ese nickname ya está registrado. Usa otro o inicia sesión.' }, timestamp: new Date().toISOString() });
+        return;
+    }
+
     const { salt, hash } = hashPassword(password);
     const now = new Date().toISOString();
     const user = {
         id: randomUUID(),
-        code: generateUserCode(),
+        code: await generateUserCode(),
         firstName,
         lastName,
         nickname,
@@ -612,22 +588,28 @@ function handleRegister(ws, payload) {
         updatedAt: now
     };
 
-    db.users.push(user);
-    saveDatabase();
+    await pool.query(
+        `INSERT INTO users(id, code, first_name, last_name, nickname, nickname_normalized, password_salt, password_hash, created_at, updated_at)
+         VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)`,
+        [user.id, user.code, user.firstName, user.lastName, user.nickname, normalizeNickname(user.nickname), user.passwordSalt, user.passwordHash, user.createdAt, user.updatedAt]
+    );
 
-    const token = createSession(user.id);
-    attachAuthenticatedUser(ws, user, token);
+    const token = await createSession(user.id);
+    await attachAuthenticatedUser(ws, {
+        id: user.id,
+        code: user.code,
+        first_name: user.firstName,
+        last_name: user.lastName,
+        nickname: user.nickname,
+        password_salt: user.passwordSalt,
+        password_hash: user.passwordHash
+    }, token);
 }
 
-/**
- * Autentica una cuenta existente con nickname y contraseña.
- * @param {WebSocket} ws Cliente solicitante.
- * @param {object} payload Credenciales.
- */
-function handleLogin(ws, payload) {
+async function handleLogin(ws, payload) {
     const nickname = sanitizeText(payload.nickname, MAX_NICKNAME_LENGTH);
     const password = String(payload.password || '');
-    const user = findUserByNickname(nickname);
+    const user = await findUserByNickname(nickname);
 
     if (!nickname || !password) {
         sendJson(ws, { type: 'auth_error', payload: { text: 'Ingresa nickname y contraseña.' }, timestamp: new Date().toISOString() });
@@ -639,72 +621,38 @@ function handleLogin(ws, payload) {
         return;
     }
 
-    if (!verifyPassword(password, user)) {
+    const userForVerify = {
+        passwordSalt: user.password_salt,
+        passwordHash: user.password_hash
+    };
+    if (!verifyPassword(password, userForVerify)) {
         sendJson(ws, { type: 'auth_error', payload: { text: 'La contraseña es incorrecta.' }, timestamp: new Date().toISOString() });
         return;
     }
 
-    const token = createSession(user.id);
-    attachAuthenticatedUser(ws, user, token);
+    const token = await createSession(user.id);
+    await attachAuthenticatedUser(ws, user, token);
 }
 
-/**
- * Reanuda una sesión mediante token guardado en localStorage.
- * @param {WebSocket} ws Cliente solicitante.
- * @param {object} payload Datos de sesión.
- */
-function handleResume(ws, payload) {
-    const sessionToken = sanitizeText(payload.sessionToken, 200);
-    const user = findUserBySessionToken(sessionToken);
-
+async function handleResume(ws, payload) {
+    const user = await findUserBySessionToken(payload.sessionToken);
     if (!user) {
         sendJson(ws, { type: 'auth_error', payload: { text: 'La sesión expiró. Inicia sesión nuevamente.' }, timestamp: new Date().toISOString() });
         return;
     }
-
-    attachAuthenticatedUser(ws, user, sessionToken);
+    await attachAuthenticatedUser(ws, user, sanitizeText(payload.sessionToken, 200));
 }
 
-/**
- * Cierra sesión del token actual.
- * @param {WebSocket} ws Cliente solicitante.
- * @param {object} payload Datos de sesión.
- */
-function handleLogout(ws, payload) {
-    removeSession(payload.sessionToken);
-    detachSocket(ws, true);
+async function handleLogout(ws, payload) {
+    await removeSession(payload.sessionToken);
+    await detachSocket(ws, true);
     sendJson(ws, { type: 'logout_success', payload: {}, timestamp: new Date().toISOString() });
 }
 
-/**
- * Procesa un mensaje global y lo reenvía a todos.
- * @param {WebSocket} ws Cliente emisor.
- * @param {{text:string}} payload Datos del mensaje.
- * @param {string} timestamp Fecha enviada por cliente.
- */
-function handleMessage(ws, payload, timestamp) {
+async function handleMessage(ws, payload, timestamp) {
     const user = users.get(ws);
     const text = sanitizeText(payload.text, MAX_MESSAGE_LENGTH);
-
-    if (!user?.nickname || !text) {
-        return;
-    }
-
-     // Anti spam: 1 mensaje por segundo
-    const lastMessage = messageCooldowns.get(user.id) || 0;
-
-    if (Date.now() - lastMessage < 1000) {
-        sendJson(ws, {
-            type: 'error',
-            payload: {
-                text: 'Estás enviando mensajes demasiado rápido.'
-            },
-            timestamp: new Date().toISOString()
-        });
-        return;
-    }
-
-    messageCooldowns.set(user.id, Date.now());
+    if (!user?.nickname || !text) return;
 
     const message = {
         id: randomUUID(),
@@ -714,23 +662,23 @@ function handleMessage(ws, payload, timestamp) {
         timestamp: timestamp || new Date().toISOString()
     };
 
-    saveHistory(message);
-    broadcast({
-        type: 'broadcast',
-        payload: message,
-        timestamp: message.timestamp
-    });
+    await pool.query(
+        'INSERT INTO global_messages(id, from_id, from_nickname, text, created_at) VALUES($1,$2,$3,$4,$5)',
+        [message.id, message.fromId, message.from, message.text, message.timestamp]
+    );
+
+    await pool.query(
+        `DELETE FROM global_messages
+         WHERE id NOT IN (SELECT id FROM global_messages ORDER BY created_at DESC LIMIT $1)`,
+        [MAX_HISTORY]
+    );
+
+    await publishCluster({ event: 'broadcast', payload: message });
 }
 
-/**
- * Envía un mensaje privado a todos los dispositivos del destinatario y del emisor.
- * @param {WebSocket} ws Cliente emisor.
- * @param {{targetId:string,text:string}} payload Datos privados.
- * @param {string} timestamp Fecha enviada por cliente.
- */
-function handlePrivate(ws, payload, timestamp) {
+async function handlePrivate(ws, payload, timestamp) {
     const sender = users.get(ws);
-    const targetUser = findUserById(payload.targetId);
+    const targetUser = await findUserById(payload.targetId);
     const text = sanitizeText(payload.text, MAX_MESSAGE_LENGTH);
 
     if (!sender?.nickname || !payload.targetId || payload.targetId === sender.id || !targetUser || !text) {
@@ -748,62 +696,70 @@ function handlePrivate(ws, payload, timestamp) {
         timestamp: timestamp || new Date().toISOString()
     };
 
-    db.privateMessages.push({
-        id: message.id,
-        fromId: sender.id,
-        fromNickname: sender.nickname,
-        toId: targetUser.id,
-        toNickname: targetUser.nickname,
-        text,
-        timestamp: message.timestamp
-    });
-    db.privateMessages = db.privateMessages.slice(-1000);
-    saveDatabase();
+    await pool.query(
+        `INSERT INTO private_messages(id, from_id, from_nickname, to_id, to_nickname, text, created_at)
+         VALUES($1,$2,$3,$4,$5,$6,$7)`,
+        [message.id, message.fromId, message.from, message.toId, message.to, message.text, message.timestamp]
+    );
 
-    const payloadMessage = {
-        type: 'private_msg',
+    await pool.query(
+        `DELETE FROM private_messages pm
+         WHERE ((pm.from_id = $1 AND pm.to_id = $2) OR (pm.from_id = $2 AND pm.to_id = $1))
+         AND pm.id NOT IN (
+            SELECT id
+            FROM private_messages
+            WHERE ((from_id = $1 AND to_id = $2) OR (from_id = $2 AND to_id = $1))
+            ORDER BY created_at DESC
+            LIMIT $3
+         )`,
+        [message.fromId, message.toId, MAX_HISTORY]
+    );
+
+    await publishCluster({
+        event: 'private_msg',
         payload: message,
-        timestamp: message.timestamp
-    };
-
-    sendToUser(targetUser.id, payloadMessage);
-    sendToUser(sender.id, payloadMessage, ws);
+        originServerId: SERVER_ID,
+        originConnectionId: ws.connectionId
+    });
 }
 
-/**
- * Elimina un mensaje privado por id (sólo el autor puede eliminar).
- * @param {WebSocket} ws
- * @param {{id:string}} payload
- */
-function handleDeletePrivateMessage(ws, payload) {
+
+async function handleDeletePrivateMessage(ws, payload) {
     const requester = users.get(ws);
-    if (!requester?.id) return sendJson(ws, { type: 'private_error', payload: { text: 'No autenticado.' }, timestamp: new Date().toISOString() });
+    const id = sanitizeText(payload.id, 80);
 
-    const id = String(payload.id || '').trim();
-    if (!id) return sendJson(ws, { type: 'private_error', payload: { text: 'Id inválida.' }, timestamp: new Date().toISOString() });
+    if (!requester?.id || !id) {
+        sendJson(ws, { type: 'private_error', payload: { text: 'Solicitud de eliminación inválida.' }, timestamp: new Date().toISOString() });
+        return;
+    }
 
-    const idx = db.privateMessages.findIndex((m) => m.id === id);
-    if (idx === -1) return sendJson(ws, { type: 'private_error', payload: { text: 'Mensaje no encontrado.' }, timestamp: new Date().toISOString() });
+    const result = await pool.query('SELECT * FROM private_messages WHERE id = $1 LIMIT 1', [id]);
+    const message = result.rows[0];
 
-    const msg = db.privateMessages[idx];
-    if (msg.fromId !== requester.id) return sendJson(ws, { type: 'private_error', payload: { text: 'No estás autorizado para eliminar este mensaje.' }, timestamp: new Date().toISOString() });
+    if (!message) {
+        sendJson(ws, { type: 'private_error', payload: { text: 'Mensaje no encontrado o ya fue eliminado.' }, timestamp: new Date().toISOString() });
+        return;
+    }
 
-    // Eliminar y guardar
-    db.privateMessages.splice(idx, 1);
-    saveDatabase();
+    if (message.from_id !== requester.id) {
+        sendJson(ws, { type: 'private_error', payload: { text: 'Solo puedes eliminar mensajes privados enviados por ti.' }, timestamp: new Date().toISOString() });
+        return;
+    }
 
-    // Notificar al emisor y receptor
-    const notice = { type: 'private_delete', payload: { id }, timestamp: new Date().toISOString() };
-    sendToUser(msg.toId, notice);
-    sendToUser(msg.fromId, notice);
+    await pool.query('DELETE FROM private_messages WHERE id = $1', [id]);
+
+    await publishCluster({
+        event: 'private_delete',
+        payload: {
+            id,
+            fromId: message.from_id,
+            toId: message.to_id
+        },
+        originConnectionId: ws.connectionId
+    });
 }
 
-/**
- * Crea un grupo/comunidad con miembros activos.
- * @param {WebSocket} ws Cliente creador.
- * @param {{name:string,memberIds:string[]}} payload Datos del grupo.
- */
-function handleCreateGroup(ws, payload) {
+async function handleCreateGroup(ws, payload) {
     const creator = users.get(ws);
     const name = sanitizeText(payload.name, 40);
     const selectedMemberIds = Array.isArray(payload.memberIds) ? payload.memberIds : [];
@@ -813,13 +769,10 @@ function handleCreateGroup(ws, payload) {
         return;
     }
 
-    const activeIds = new Set(getUserList().map((user) => user.id));
+    const activeIds = new Set(await getOnlineUserIds());
     const memberIds = new Set([creator.id]);
-
     selectedMemberIds.forEach((memberId) => {
-        if (activeIds.has(memberId) && memberId !== creator.id) {
-            memberIds.add(memberId);
-        }
+        if (activeIds.has(memberId) && memberId !== creator.id) memberIds.add(memberId);
     });
 
     if (memberIds.size < 2) {
@@ -831,25 +784,32 @@ function handleCreateGroup(ws, payload) {
         id: randomUUID(),
         name,
         createdBy: creator.id,
-        createdAt: new Date().toISOString(),
-        memberIds: Array.from(memberIds),
-        history: []
+        createdAt: new Date().toISOString()
     };
 
-    db.groups.push(group);
-    saveDatabase();
-    broadcastGroupLists();
+    const client = await pool.connect();
+    try {
+        await client.query('BEGIN');
+        await client.query('INSERT INTO groups(id, name, created_by, created_at) VALUES($1,$2,$3,$4)', [group.id, group.name, group.createdBy, group.createdAt]);
+        for (const memberId of memberIds) {
+            await client.query('INSERT INTO group_members(group_id, user_id) VALUES($1,$2) ON CONFLICT DO NOTHING', [group.id, memberId]);
+        }
+        await client.query('COMMIT');
+    } catch (error) {
+        await client.query('ROLLBACK');
+        throw error;
+    } finally {
+        client.release();
+    }
+
+    await publishCluster({ event: 'group_lists_update' });
     logEvent(`${creator.nickname} creó el grupo ${name}`);
 }
 
-/**
- * Agrega nuevos miembros activos a un grupo existente.
- * @param {WebSocket} ws Cliente que solicita la acción.
- * @param {{groupId:string, memberIds:string[]}} payload Datos de solicitud.
- */
-function handleAddGroupMembers(ws, payload) {
+async function handleAddGroupMembers(ws, payload) {
     const requester = users.get(ws);
-    const group = db.groups.find((item) => item.id === payload.groupId);
+    const groupResult = await pool.query('SELECT * FROM groups WHERE id = $1 LIMIT 1', [payload.groupId]);
+    const group = groupResult.rows[0];
     const selectedIds = Array.isArray(payload.memberIds) ? payload.memberIds : [];
 
     if (!requester?.nickname || !group) {
@@ -857,48 +817,47 @@ function handleAddGroupMembers(ws, payload) {
         return;
     }
 
-    if (!group.memberIds.includes(requester.id)) {
+    const isMember = await pool.query('SELECT 1 FROM group_members WHERE group_id = $1 AND user_id = $2', [group.id, requester.id]);
+    if (isMember.rowCount === 0) {
         sendJson(ws, { type: 'group_error', payload: { text: 'No eres miembro de este grupo.' }, timestamp: new Date().toISOString() });
         return;
     }
 
-    const activeIds = new Set(getUserList().map((user) => user.id));
+    const activeIds = new Set(await getOnlineUserIds());
     let added = 0;
-
-    selectedIds.forEach((id) => {
-        if (activeIds.has(id) && !group.memberIds.includes(id)) {
-            group.memberIds.push(id);
-            added += 1;
+    for (const id of selectedIds) {
+        if (activeIds.has(id)) {
+            const insert = await pool.query('INSERT INTO group_members(group_id, user_id) VALUES($1,$2) ON CONFLICT DO NOTHING', [group.id, id]);
+            added += insert.rowCount;
         }
-    });
+    }
 
     if (added === 0) {
         sendJson(ws, { type: 'group_error', payload: { text: 'No se agregaron nuevos miembros.' }, timestamp: new Date().toISOString() });
         return;
     }
 
-    saveDatabase();
-    broadcastGroupLists();
-    logEvent(`${requester.nickname} agregó ${added} miembro(s) al grupo ${group.name}`);
+    await publishCluster({ event: 'group_lists_update' });
 }
 
-/**
- * Genera un token de invitación para un grupo.
- * @param {WebSocket} ws Cliente que solicita.
- * @param {{groupId:string}} payload Datos.
- */
-function handleGenerateInvite(ws, payload) {
+async function handleGenerateInvite(ws, payload) {
     const requester = users.get(ws);
-    const group = db.groups.find((item) => item.id === payload.groupId);
+    const groupResult = await pool.query('SELECT * FROM groups WHERE id = $1 LIMIT 1', [payload.groupId]);
+    const group = groupResult.rows[0];
 
-    if (!requester?.nickname || !group || !group.memberIds.includes(requester.id)) {
+    if (!requester?.nickname || !group) {
+        sendJson(ws, { type: 'group_error', payload: { text: 'No puedes generar una invitación para este grupo.' }, timestamp: new Date().toISOString() });
+        return;
+    }
+
+    const isMember = await pool.query('SELECT 1 FROM group_members WHERE group_id = $1 AND user_id = $2', [group.id, requester.id]);
+    if (isMember.rowCount === 0) {
         sendJson(ws, { type: 'group_error', payload: { text: 'No puedes generar una invitación para este grupo.' }, timestamp: new Date().toISOString() });
         return;
     }
 
     const token = randomUUID().replace(/-/g, '').slice(0, 12);
-    inviteTokens.set(token, group.id);
-    setTimeout(() => inviteTokens.delete(token), 24 * 60 * 60 * 1000);
+    await redis.setEx(`invite:${token}`, INVITE_SECONDS, group.id);
 
     sendJson(ws, {
         type: 'invite_link',
@@ -907,49 +866,50 @@ function handleGenerateInvite(ws, payload) {
     });
 }
 
-/**
- * Une a un usuario a un grupo mediante un token de invitación.
- * @param {WebSocket} ws Cliente que se une.
- * @param {{token:string}} payload Datos del token.
- */
-function handleJoinByInvite(ws, payload) {
+async function handleJoinByInvite(ws, payload) {
     const requester = users.get(ws);
-    const groupId = inviteTokens.get(payload.token);
+    const token = sanitizeText(payload.token, 80);
+    const groupId = await redis.get(`invite:${token}`);
 
     if (!requester?.nickname || !groupId) {
         sendJson(ws, { type: 'group_error', payload: { text: 'El enlace de invitación no es válido o expiró.' }, timestamp: new Date().toISOString() });
         return;
     }
 
-    const group = db.groups.find((item) => item.id === groupId);
+    const groupResult = await pool.query('SELECT * FROM groups WHERE id = $1 LIMIT 1', [groupId]);
+    const group = groupResult.rows[0];
     if (!group) {
         sendJson(ws, { type: 'group_error', payload: { text: 'El grupo ya no existe.' }, timestamp: new Date().toISOString() });
         return;
     }
 
-    if (group.memberIds.includes(requester.id)) {
+    const insert = await pool.query('INSERT INTO group_members(group_id, user_id) VALUES($1,$2) ON CONFLICT DO NOTHING', [groupId, requester.id]);
+    if (insert.rowCount === 0) {
         sendJson(ws, { type: 'group_error', payload: { text: 'Ya eres miembro de este grupo.' }, timestamp: new Date().toISOString() });
         return;
     }
 
-    group.memberIds.push(requester.id);
-    saveDatabase();
-    broadcastGroupLists();
-    logEvent(`${requester.nickname} se unió a ${group.name} por invitación`);
+    sendJson(ws, {
+        type: 'join_success',
+        payload: { id: requester.id, nickname: requester.nickname, groupId: group.id, groupName: group.name },
+        timestamp: new Date().toISOString()
+    });
+    await publishCluster({ event: 'group_lists_update' });
 }
 
-/**
- * Envía un mensaje de grupo sólo a los miembros de la comunidad.
- * @param {WebSocket} ws Cliente emisor.
- * @param {{groupId:string,text:string}} payload Datos del mensaje.
- * @param {string} timestamp Fecha enviada por el cliente.
- */
-function handleGroupMessage(ws, payload, timestamp) {
+async function handleGroupMessage(ws, payload, timestamp) {
     const sender = users.get(ws);
-    const group = db.groups.find((item) => item.id === payload.groupId);
+    const groupResult = await pool.query('SELECT * FROM groups WHERE id = $1 LIMIT 1', [payload.groupId]);
+    const group = groupResult.rows[0];
     const text = sanitizeText(payload.text, MAX_MESSAGE_LENGTH);
 
-    if (!sender?.nickname || !group || !group.memberIds.includes(sender.id) || !text) {
+    if (!sender?.nickname || !group || !text) {
+        sendJson(ws, { type: 'group_error', payload: { text: 'Mensaje de grupo inválido.' }, timestamp: new Date().toISOString() });
+        return;
+    }
+
+    const isMember = await pool.query('SELECT 1 FROM group_members WHERE group_id = $1 AND user_id = $2', [group.id, sender.id]);
+    if (isMember.rowCount === 0) {
         sendJson(ws, { type: 'group_error', payload: { text: 'Mensaje de grupo inválido.' }, timestamp: new Date().toISOString() });
         return;
     }
@@ -964,39 +924,31 @@ function handleGroupMessage(ws, payload, timestamp) {
         timestamp: timestamp || new Date().toISOString()
     };
 
-    group.history.push(message);
-    group.history = group.history.slice(-MAX_HISTORY);
-    saveDatabase();
+    await pool.query(
+        `INSERT INTO group_messages(id, group_id, group_name, from_id, from_nickname, text, created_at)
+         VALUES($1,$2,$3,$4,$5,$6,$7)`,
+        [message.id, message.groupId, message.groupName, message.fromId, message.from, message.text, message.timestamp]
+    );
 
-    group.memberIds.forEach((memberId) => {
-        sendToUser(memberId, {
-            type: 'group_msg',
-            payload: message,
-            timestamp: message.timestamp
-        });
-    });
+    await pool.query(
+        `DELETE FROM group_messages gm
+         WHERE gm.group_id = $1
+         AND gm.id NOT IN (
+            SELECT id FROM group_messages WHERE group_id = $1 ORDER BY created_at DESC LIMIT $2
+         )`,
+        [message.groupId, MAX_HISTORY]
+    );
 
-    broadcastGroupLists();
+    const membersResult = await pool.query('SELECT user_id FROM group_members WHERE group_id = $1', [group.id]);
+    await publishCluster({ event: 'group_msg', payload: message, memberIds: membersResult.rows.map((row) => row.user_id) });
+    await publishCluster({ event: 'group_lists_update' });
 }
 
-/**
- * Reenvía el indicador de escritura según la conversación activa.
- * Global: se envía a todos menos al emisor.
- * Privado: se envía solo al destinatario.
- * Grupo: se envía solo a los miembros del grupo, excepto al emisor.
- * @param {WebSocket} ws Cliente emisor.
- * @param {{isTyping:boolean,chatType?:string,targetId?:string,targetName?:string}} payload Estado de escritura.
- */
-function handleTyping(ws, payload) {
+async function handleTyping(ws, payload) {
     const user = users.get(ws);
+    if (!user?.nickname) return;
 
-    if (!user?.nickname) {
-        return;
-    }
-
-    const chatType = ['global', 'private', 'group'].includes(payload.chatType)
-        ? payload.chatType
-        : 'global';
+    const chatType = ['global', 'private', 'group'].includes(payload.chatType) ? payload.chatType : 'global';
     const targetId = sanitizeText(payload.targetId || '', 80);
     const typingPayload = {
         fromId: user.id,
@@ -1005,107 +957,189 @@ function handleTyping(ws, payload) {
         chatType,
         targetId: chatType === 'global' ? 'global' : targetId
     };
-    const message = {
-        type: 'typing_status',
+
+    await publishCluster({
+        event: 'typing_status',
         payload: typingPayload,
-        timestamp: new Date().toISOString()
-    };
+        originUserId: user.id,
+        originConnectionId: ws.connectionId
+    });
+}
 
-    if (chatType === 'global') {
-        broadcast(message, ws);
+async function handleClusterEvent(rawMessage) {
+    let data;
+    try {
+        data = JSON.parse(rawMessage);
+    } catch {
         return;
     }
 
-    if (chatType === 'private') {
-        const targetUser = findUserById(targetId);
-        if (!targetUser || targetUser.id === user.id) {
-            return;
-        }
-        sendToUser(targetUser.id, message);
-        return;
-    }
+    const timestamp = data.payload?.timestamp || data.emittedAt || new Date().toISOString();
 
-    if (chatType === 'group') {
-        const group = db.groups.find((item) => item.id === targetId);
-        if (!group || !Array.isArray(group.memberIds) || !group.memberIds.includes(user.id)) {
-            return;
-        }
-
-        group.memberIds
-            .filter((memberId) => memberId !== user.id)
-            .forEach((memberId) => sendToUser(memberId, message));
+    switch (data.event) {
+        case 'broadcast':
+            broadcastLocal({ type: 'broadcast', payload: data.payload, timestamp });
+            break;
+        case 'private_msg':
+            sendToLocalUser(data.payload.toId, { type: 'private_msg', payload: data.payload, timestamp });
+            sendToLocalUser(data.payload.fromId, { type: 'private_msg', payload: data.payload, timestamp }, data.originConnectionId);
+            break;
+        case 'private_delete':
+            sendToLocalUser(data.payload.toId, { type: 'private_delete', payload: { id: data.payload.id }, timestamp });
+            sendToLocalUser(data.payload.fromId, { type: 'private_delete', payload: { id: data.payload.id }, timestamp });
+            break;
+        case 'group_msg':
+            (data.memberIds || []).forEach((memberId) => {
+                sendToLocalUser(memberId, { type: 'group_msg', payload: data.payload, timestamp });
+            });
+            break;
+        case 'typing_status':
+            await deliverTypingStatus(data.payload, data.originConnectionId);
+            break;
+        case 'presence_update':
+            await broadcastUserListLocal();
+            break;
+        case 'group_lists_update':
+            await broadcastGroupListsLocal();
+            break;
+        case 'system':
+            broadcastLocal({ type: 'system', payload: data.payload, timestamp: data.emittedAt });
+            break;
+        default:
+            break;
     }
 }
 
-/**
- * Enruta mensajes JSON del cliente según el campo type.
- * @param {WebSocket} ws Cliente emisor.
- * @param {Buffer} rawMessage Mensaje recibido.
- */
-function handleSocketMessage(ws, rawMessage) {
-    let data;
+async function deliverTypingStatus(payload, originConnectionId = null) {
+    const message = { type: 'typing_status', payload, timestamp: new Date().toISOString() };
 
+    if (payload.chatType === 'global') {
+        broadcastLocal(message, originConnectionId);
+        return;
+    }
+
+    if (payload.chatType === 'private') {
+        sendToLocalUser(payload.targetId, message);
+        return;
+    }
+
+    if (payload.chatType === 'group') {
+        const members = await pool.query('SELECT user_id FROM group_members WHERE group_id = $1', [payload.targetId]);
+        members.rows
+            .map((row) => row.user_id)
+            .filter((memberId) => memberId !== payload.fromId)
+            .forEach((memberId) => sendToLocalUser(memberId, message));
+    }
+}
+
+async function handleSocketMessage(ws, rawMessage) {
+    let data;
     try {
         data = JSON.parse(rawMessage.toString());
-    } catch (error) {
+    } catch {
         sendJson(ws, { type: 'error', payload: { text: 'El mensaje debe ser JSON válido.' }, timestamp: new Date().toISOString() });
         return;
     }
 
     const { type, payload = {}, timestamp } = data;
 
-    switch (type) {
-        case 'register':
-            handleRegister(ws, payload);
-            break;
-        case 'login':
-            handleLogin(ws, payload);
-            break;
-        case 'resume':
-            handleResume(ws, payload);
-            break;
-        case 'logout':
-            handleLogout(ws, payload);
-            break;
-        case 'message':
-            handleMessage(ws, payload, timestamp);
-            break;
-        case 'private':
-            handlePrivate(ws, payload, timestamp);
-            break;
-        case 'delete_private_message':
-            handleDeletePrivateMessage(ws, payload);
-            break;
-        case 'typing':
-            handleTyping(ws, payload);
-            break;
-        case 'create_group':
-            handleCreateGroup(ws, payload);
-            break;
-        case 'group_message':
-            handleGroupMessage(ws, payload, timestamp);
-            break;
-        case 'add_group_members':
-            handleAddGroupMembers(ws, payload);
-            break;
-        case 'join_by_invite':
-            handleJoinByInvite(ws, payload);
-            break;
-        case 'generate_invite':
-            handleGenerateInvite(ws, payload);
-            break;
-        default:
-            sendJson(ws, { type: 'error', payload: { text: 'Tipo de mensaje no reconocido.' }, timestamp: new Date().toISOString() });
+    try {
+        switch (type) {
+            case 'register': await handleRegister(ws, payload); break;
+            case 'login': await handleLogin(ws, payload); break;
+            case 'resume': await handleResume(ws, payload); break;
+            case 'logout': await handleLogout(ws, payload); break;
+            case 'message':
+                if (!checkRateLimit(ws)) return rejectRateLimited(ws);
+                await handleMessage(ws, payload, timestamp);
+                break;
+            case 'private':
+                if (!checkRateLimit(ws)) return rejectRateLimited(ws);
+                await handlePrivate(ws, payload, timestamp);
+                break;
+            case 'delete_private_message':
+                await handleDeletePrivateMessage(ws, payload);
+                break;
+            case 'typing': await handleTyping(ws, payload); break;
+            case 'create_group': await handleCreateGroup(ws, payload); break;
+            case 'group_message':
+                if (!checkRateLimit(ws)) return rejectRateLimited(ws);
+                await handleGroupMessage(ws, payload, timestamp);
+                break;
+            case 'add_group_members': await handleAddGroupMembers(ws, payload); break;
+            case 'join_by_invite': await handleJoinByInvite(ws, payload); break;
+            case 'generate_invite': await handleGenerateInvite(ws, payload); break;
+            default:
+                sendJson(ws, { type: 'error', payload: { text: 'Tipo de mensaje no reconocido.' }, timestamp: new Date().toISOString() });
+        }
+    } catch (error) {
+        console.error(error);
+        sendJson(ws, { type: 'error', payload: { text: 'Error interno del servidor.' }, timestamp: new Date().toISOString() });
     }
 }
 
 wss.on('connection', (ws) => {
-    logEvent('Cliente WebSocket conectado');
+    ws.connectionId = randomUUID();
+    ws.isAlive = true;
+    ws.rateLimit = { windowStart: Date.now(), count: 0 };
 
+    logEvent('Cliente WebSocket conectado');
+    ws.on('pong', () => { ws.isAlive = true; });
     ws.on('message', (message) => handleSocketMessage(ws, message));
     ws.on('close', () => detachSocket(ws, true));
+    ws.on('error', () => detachSocket(ws, true));
 });
 
-server.listen(PORT, () => {
-    logEvent(`Servidor en http://localhost:${PORT}`);
+const heartbeatTimer = setInterval(() => {
+    wss.clients.forEach((ws) => {
+        if (ws.isAlive === false) {
+            ws.terminate();
+            return;
+        }
+        ws.isAlive = false;
+        ws.ping();
+    });
+}, HEARTBEAT_INTERVAL_MS);
+
+heartbeatTimer.unref();
+
+async function start() {
+    redis.on('error', (error) => console.error('Redis error:', error));
+    subscriber.on('error', (error) => console.error('Redis subscriber error:', error));
+
+    await pool.query('SELECT 1');
+    await initDatabase();
+    await redis.connect();
+    await subscriber.connect();
+    await cleanupServerPresence();
+    await subscriber.subscribe(REDIS_CHANNEL, handleClusterEvent);
+
+    server.listen(PORT, HOST, () => {
+        logEvent(`Servidor WebSocket listo en http://${HOST}:${PORT}`);
+        logEvent(`Redis: ${REDIS_URL}`);
+        logEvent(`PostgreSQL: ${DATABASE_URL.replace(/:[^:@/]+@/, ':***@')}`);
+        logEvent(`Historial máximo por conversación: ${MAX_HISTORY}`);
+    });
+}
+
+async function shutdown() {
+    logEvent('Cerrando servidor...');
+    clearInterval(heartbeatTimer);
+    server.close();
+    for (const userId of socketsByUserId.keys()) {
+        await markUserOfflineFromThisServer(userId);
+    }
+    await publishCluster({ event: 'presence_update' });
+    await subscriber.quit().catch(() => {});
+    await redis.quit().catch(() => {});
+    await pool.end().catch(() => {});
+    process.exit(0);
+}
+
+process.on('SIGINT', shutdown);
+process.on('SIGTERM', shutdown);
+
+start().catch((error) => {
+    console.error('No se pudo iniciar el servidor distribuido:', error);
+    process.exit(1);
 });

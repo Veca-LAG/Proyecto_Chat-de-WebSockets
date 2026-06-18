@@ -1,21 +1,34 @@
 {
-    "name": "chat-websocket-pro",
-    "version": "1.0.0",
-    "description": "Chat en tiempo real con WebSockets, HTML5, CSS3 y JavaScript Vanilla.",
-    "main": "server.js",
-    "scripts": {
-        "start": "node server.js"
-    },
-    "keywords": [
-        "websocket",
-        "chat",
-        "nodejs",
-        "vanilla-js"
-    ],
-    "author": "Equipo Chat WebSocket",
-    "license": "MIT",
-    "type": "commonjs",
-    "dependencies": {
-        "ws": "^8.20.1"
-    }
+  "name": "chat-websocket-escalable-distribuido",
+  "version": "3.0.0",
+  "description": "Chat en tiempo real con WebSockets, Redis Pub/Sub y PostgreSQL; preparado para múltiples servidores y pruebas de 100 usuarios.",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "dev": "node server.js",
+    "dev:server1": "cross-env HOST=0.0.0.0 PORT=3000 SERVER_ID=server-1 node server.js",
+    "dev:server2": "cross-env HOST=0.0.0.0 PORT=3001 SERVER_ID=server-2 node server.js",
+    "test:100": "node tests/load-test-100.js",
+    "check:sensitive": "node scripts/check-git-sensitive-files.js",
+    "setup:hooks": "node scripts/setup-git-hooks.js"
+  },
+  "keywords": [
+    "websocket",
+    "chat",
+    "nodejs",
+    "redis",
+    "postgresql",
+    "sistemas-distribuidos",
+    "scalability"
+  ],
+  "author": "Equipo Chat WebSocket",
+  "license": "MIT",
+  "type": "commonjs",
+  "dependencies": {
+    "cross-env": "^7.0.3",
+    "dotenv": "^16.4.7",
+    "pg": "^8.13.1",
+    "redis": "^4.7.0",
+    "ws": "^8.20.1"
+  }
 }

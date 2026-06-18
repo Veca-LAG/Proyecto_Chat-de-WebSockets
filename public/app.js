@@ -620,6 +620,7 @@ function handleServerMessage(rawMessage) {
             break;
         case 'broadcast':
             state.globalMessages.push({ ...payload, timestamp });
+            state.globalMessages = state.globalMessages.slice(-300);
             if (state.activeChat?.type === 'global') {
                 renderMessage({ ...payload, timestamp, kind: 'global' });
             } else if (payload.fromId !== state.selfId) {
@@ -1056,7 +1057,7 @@ function renderActiveChatShell() {
         elements.profileAvatar.textContent = '🌐';
         elements.profileName.textContent = 'Foro Global';
         elements.profileStatus.textContent = `● ${state.users.length} usuario(s) activo(s)`;
-        elements.profileDescription.textContent = 'Canal público en tiempo real. El historial del servidor conserva los últimos 50 mensajes globales.';
+        elements.profileDescription.textContent = 'Canal público en tiempo real. El historial del servidor conserva los últimos 300 mensajes globales.';
         renderProfileUsers();
         return;
     }
@@ -1219,7 +1220,7 @@ function renderMessage(message) {
     messageElement.append(metaElement, textElement);
 
  // 🌟 NUEVO: Menú de tres puntitos en la esquina superior derecha (texto limpio)
-    if (isOwn && message.id) {
+    if (isOwn && message.id && messageKind === 'private') {
         const menuContainer = document.createElement('div');
         menuContainer.className = 'message-menu-container';
 
@@ -1374,6 +1375,7 @@ function receivePrivateMessage(payload, timestamp) {
     const duplicated = conversation.messages.some((item) => item.id && payload.id && item.id === payload.id);
     if (!duplicated) {
         conversation.messages.push(message);
+        conversation.messages = conversation.messages.slice(-300);
     }
     conversation.updatedAt = timestamp || new Date().toISOString();
     saveLocalState();
@@ -1411,7 +1413,7 @@ function receiveGroupMessage(payload, timestamp) {
     };
 
     if (group) {
-        group.history = [...(group.history || []), message].slice(-50);
+        group.history = [...(group.history || []), message].slice(-300);
     }
        // ── Contar no leído ──
     const isActiveGroup = state.activeChat?.type === 'group' && state.activeChat.id === payload.groupId;
@@ -1524,6 +1526,7 @@ function handleMessageSubmit(event) {
                 direction: 'out'
             };
             conversation.messages.push(message);
+            conversation.messages = conversation.messages.slice(-300);
             conversation.updatedAt = timestamp;
             saveLocalState();
             renderChatList();

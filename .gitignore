@@ -1,4 +1,37 @@
+# Dependencias
 node_modules/
-npm-debug.log*
+
+# Variables de entorno reales / secretos
 .env
+.env.local
+.env.*.local
+!.env.example
+!.env.*.example
+
+# Base de datos local antigua
+# Esta versión usa PostgreSQL. No subas db.json con usuarios, sesiones o tokens.
+data/db.json
+
+# Logs
+logs/
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Builds / cobertura
+dist/
+build/
+coverage/
+
+# Sistema operativo
 .DS_Store
+Thumbs.db
+
+# Editores
+.vscode/
+.idea/
+
+# Temporales
+*.tmp
+*.temp
