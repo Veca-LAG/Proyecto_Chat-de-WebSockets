@@ -1,6 +1,7 @@
 // ── REACCIONES (localStorage + sync en tiempo real) ──────────────────────
 const REACTIONS_KEY   = 'ola_reactions';
 const QUICK_REACTIONS = ['👍', '❤️', '😂', '😮', '😢', '🙏'];
+const reactionHandlers = new Map();
 
 function getStoredReactions() {
     try { return JSON.parse(localStorage.getItem(REACTIONS_KEY) || '{}'); }
@@ -76,8 +77,10 @@ export function refreshReactionBar(messageId, messageElement, selfId) {
         countSpan.textContent = count;
 
         pill.append(emojiSpan, countSpan);
-        pill.addEventListener('click', () => {
-            pill._onToggle?.(emoji);
+        pill.dataset.emoji = emoji;
+        pill.addEventListener('click', (event) => {
+            event.stopPropagation();
+            reactionHandlers.get(messageId)?.(emoji);
         });
         bar.appendChild(pill);
     }
@@ -287,62 +290,115 @@ export function addEditedTag(messageElement) {
 }
 
 // ── CONSTRUCTOR DEL MENÚ ──────────────────────────────────────────────────
-export function buildMessageMenu({ message, messageElement, messageKind, isOwn, state, sendJsonFn, onReply, onStartEdit, onDeleteClick }) {
-    const container = document.createElement('div');
-    container.className = `message-menu-container${isOwn ? ' menu-own' : ''}`;
+function getPrivateTargetId(message, state) {
+    if (!message || !state) return null;
+    if (message.fromId && message.fromId !== state.selfId) return message.fromId;
+    if (message.toId && message.toId !== state.selfId) return message.toId;
 
-    // Trigger: chevron ▾ translúcido
-    const triggerBtn = document.createElement('button');
-    triggerBtn.type = 'button';
-    triggerBtn.className = 'message-menu-trigger';
-    triggerBtn.innerHTML = '&#9660;';
-    triggerBtn.title = 'Opciones';
-    triggerBtn.setAttribute('aria-label', 'Opciones del mensaje');
+    const activeName = state.activeChat?.type === 'private' ? state.activeChat.name : null;
+    const activeUser = activeName ? (state.users || []).find((u) => u.nickname === activeName) : null;
+    return activeUser?.id || null;
+}
 
-    const dropdown = document.createElement('div');
-    dropdown.className = 'message-context-dropdown';
+function syncReaction({ message, messageElement, messageKind, state, sendJsonFn, emoji }) {
+    if (!message?.id || !state?.selfId) return;
 
-    // Fila de reacciones rápidas
-    if (message.id) {
-        const reactionRow = document.createElement('div');
-        reactionRow.className = 'msg-reaction-row';
-        const stored = getMessageReactions(message.id);
+    const action = toggleReactionLocal(message.id, emoji, state.selfId);
+    refreshReactionBar(message.id, messageElement, state.selfId);
 
-        for (const emoji of QUICK_REACTIONS) {
-            const entry = stored[emoji] || { users: [] };
-            const isMine = state.selfId && entry.users?.includes(state.selfId);
-            const btn = document.createElement('button');
-            btn.type = 'button';
-            btn.className = `msg-reaction-quick${isMine ? ' active' : ''}`;
-            btn.textContent = emoji;
-            btn.title = emoji;
-            btn.addEventListener('click', (e) => {
-                e.stopPropagation();
-                dropdown.classList.remove('is-open');
-                const action = toggleReactionLocal(message.id, emoji, state.selfId);
-                // Actualiza botón activo inmediatamente
-                btn.classList.toggle('active', action === 'add');
-                refreshReactionBar(message.id, messageElement, state.selfId);
-                // Sincroniza con el servidor
-                if (message.id && sendJsonFn) {
-                    sendJsonFn({
-                        type: 'react_message',
-                        payload: {
-                            messageId: message.id,
-                            emoji,
-                            action,
-                            kind: messageKind,
-                            groupId: message.groupId || null,
-                            targetId: message.fromId || null
-                        },
-                        timestamp: new Date().toISOString()
-                    });
-                }
-            });
-            reactionRow.appendChild(btn);
-        }
-        dropdown.appendChild(reactionRow);
+    if (!sendJsonFn) return;
+
+    sendJsonFn({
+        type: 'react_message',
+        payload: {
+            messageId: message.id,
+            emoji,
+            action,
+            kind: messageKind,
+            groupId: message.groupId || null,
+            targetId: messageKind === 'private' ? getPrivateTargetId(message, state) : null
+        },
+        timestamp: new Date().toISOString()
+    });
+}
+
+function closeOpenMessageMenus() {
+    document.querySelectorAll('.msg-actions-layer').forEach((layer) => layer.remove());
+}
+
+function clamp(value, min, max) {
+    return Math.max(min, Math.min(value, max));
+}
+
+function positionActionsLayer({ messageElement, layer, reactionBar, popover, isOwn }) {
+    const rect = messageElement.getBoundingClientRect();
+    const viewportPadding = 12;
+    const gap = 8;
+
+    const popoverRect = popover.getBoundingClientRect();
+    const reactionRect = reactionBar.getBoundingClientRect();
+
+    let popoverLeft = isOwn ? rect.right - popoverRect.width : rect.left;
+    popoverLeft = clamp(popoverLeft, viewportPadding, window.innerWidth - popoverRect.width - viewportPadding);
+
+    let popoverTop = rect.top + 30;
+    if (popoverTop + popoverRect.height > window.innerHeight - viewportPadding) {
+        popoverTop = rect.bottom - popoverRect.height;
     }
+    popoverTop = clamp(popoverTop, viewportPadding, window.innerHeight - popoverRect.height - viewportPadding);
+
+    let reactionLeft = isOwn ? rect.right - reactionRect.width : rect.left;
+    reactionLeft = clamp(reactionLeft, viewportPadding, window.innerWidth - reactionRect.width - viewportPadding);
+
+    let reactionTop = popoverTop - reactionRect.height - gap;
+    if (reactionTop < viewportPadding) {
+        reactionTop = popoverTop + popoverRect.height + gap;
+    }
+    reactionTop = clamp(reactionTop, viewportPadding, window.innerHeight - reactionRect.height - viewportPadding);
+
+    popover.style.left = `${popoverLeft}px`;
+    popover.style.top = `${popoverTop}px`;
+    reactionBar.style.left = `${reactionLeft}px`;
+    reactionBar.style.top = `${reactionTop}px`;
+    layer.classList.add('is-positioned');
+}
+
+function openMessageActions({ message, messageElement, messageKind, isOwn, state, sendJsonFn, onReply, onStartEdit, onDeleteClick }) {
+    closeOpenMessageMenus();
+
+    const layer = document.createElement('div');
+    layer.className = 'msg-actions-layer';
+
+    const reactionBar = document.createElement('div');
+    reactionBar.className = 'msg-floating-reactions';
+
+    const react = (emoji) => {
+        syncReaction({ message, messageElement, messageKind, state, sendJsonFn, emoji });
+        closeOpenMessageMenus();
+    };
+
+    if (message.id) {
+        reactionHandlers.set(message.id, react);
+    }
+
+    const stored = message.id ? getMessageReactions(message.id) : {};
+    for (const emoji of QUICK_REACTIONS) {
+        const entry = stored[emoji] || { users: [] };
+        const isMine = state.selfId && entry.users?.includes(state.selfId);
+        const btn = document.createElement('button');
+        btn.type = 'button';
+        btn.className = `msg-floating-reaction${isMine ? ' active' : ''}`;
+        btn.textContent = emoji;
+        btn.title = emoji;
+        btn.addEventListener('click', (event) => {
+            event.stopPropagation();
+            react(emoji);
+        });
+        reactionBar.appendChild(btn);
+    }
+
+    const popover = document.createElement('div');
+    popover.className = `msg-actions-popover${isOwn ? ' is-own' : ''}`;
 
     const addItem = (icon, label, cls, onClick) => {
         const btn = document.createElement('button');
@@ -351,31 +407,62 @@ export function buildMessageMenu({ message, messageElement, messageKind, isOwn, 
         const iconEl  = document.createElement('span'); iconEl.className  = 'msg-action-icon';  iconEl.textContent  = icon;
         const labelEl = document.createElement('span'); labelEl.className = 'msg-action-label'; labelEl.textContent = label;
         btn.append(iconEl, labelEl);
-        btn.addEventListener('click', (e) => { e.stopPropagation(); dropdown.classList.remove('is-open'); onClick(); });
-        dropdown.appendChild(btn);
+        btn.addEventListener('click', (event) => {
+            event.stopPropagation();
+            closeOpenMessageMenus();
+            onClick?.();
+        });
+        popover.appendChild(btn);
     };
 
-    addItem('ℹ️',  'Info. del mensaje', '',             () => showMessageInfo(message));
-    addItem('↩️',  'Responder',         '',             () => onReply(message));
-    addItem('📋',  'Copiar',            '',             () => copyMessage(message.text || ''));
-    addItem('↪️',  'Reenviar',          '',             () => showForwardPicker(message, state, sendJsonFn));
-    if (isOwn) addItem('✏️', 'Editar',  '',             () => onStartEdit(message, messageElement));
-    addItem('🗑️',  'Eliminar',          'delete-action',() => onDeleteClick());
+    addItem('↩',  'Responder', '', () => onReply(message));
+    addItem('⧉',  'Copiar', '', () => copyMessage(message.text || ''));
+    addItem('↗',  'Reenviar', '', () => showForwardPicker(message, state, sendJsonFn));
+    if (isOwn) addItem('✎', 'Editar', '', () => onStartEdit(message, messageElement));
+    addItem('🗑',  'Eliminar', 'delete-action', () => onDeleteClick());
 
-    triggerBtn.addEventListener('click', (e) => {
-        e.stopPropagation();
-        document.querySelectorAll('.message-context-dropdown.is-open').forEach(m => { if (m !== dropdown) m.classList.remove('is-open'); });
-        dropdown.classList.toggle('is-open');
+    layer.append(reactionBar, popover);
+    document.body.appendChild(layer);
+
+    layer.addEventListener('click', (event) => {
+        if (event.target === layer) closeOpenMessageMenus();
     });
 
-    // Cerrar al hacer clic fuera
-    document.addEventListener('click', () => dropdown.classList.remove('is-open'));
+    const onKeydown = (event) => {
+        if (event.key === 'Escape') {
+            closeOpenMessageMenus();
+            document.removeEventListener('keydown', onKeydown);
+        }
+    };
+    document.addEventListener('keydown', onKeydown);
 
-    container.append(triggerBtn, dropdown);
+    requestAnimationFrame(() => positionActionsLayer({ messageElement, layer, reactionBar, popover, isOwn }));
+}
 
-    // Enlaza pills ya existentes con el toggle
-    refreshReactionBar(message.id, messageElement, state.selfId);
+export function buildMessageMenu({ message, messageElement, messageKind, isOwn, state, sendJsonFn, onReply, onStartEdit, onDeleteClick }) {
+    const container = document.createElement('div');
+    container.className = `message-menu-container${isOwn ? ' menu-own' : ''}`;
 
+    const triggerBtn = document.createElement('button');
+    triggerBtn.type = 'button';
+    triggerBtn.className = 'message-menu-trigger';
+    triggerBtn.innerHTML = '&#709;';
+    triggerBtn.title = 'Opciones';
+    triggerBtn.setAttribute('aria-label', 'Opciones del mensaje');
+
+    if (message.id) {
+        reactionHandlers.set(message.id, (emoji) => {
+            syncReaction({ message, messageElement, messageKind, state, sendJsonFn, emoji });
+        });
+        refreshReactionBar(message.id, messageElement, state.selfId);
+    }
+
+    triggerBtn.addEventListener('click', (event) => {
+        event.stopPropagation();
+        openMessageActions({ message, messageElement, messageKind, isOwn, state, sendJsonFn, onReply, onStartEdit, onDeleteClick });
+    });
+
+    container.appendChild(triggerBtn);
     return container;
 }
 

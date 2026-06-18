@@ -1120,7 +1120,7 @@ async function handleClusterEvent(rawMessage) {
             break;
         case 'private_msg':
             sendToLocalUser(data.payload.toId, { type: 'private_msg', payload: data.payload, timestamp });
-            sendToLocalUser(data.payload.fromId, { type: 'private_msg', payload: data.payload, timestamp }, data.originConnectionId);
+            sendToLocalUser(data.payload.fromId, { type: 'private_msg', payload: data.payload, timestamp });
             break;
         case 'private_delete':
             sendToLocalUser(data.payload.toId, { type: 'private_delete', payload: { id: data.payload.id }, timestamp });

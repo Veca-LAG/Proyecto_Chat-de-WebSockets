@@ -1594,10 +1594,13 @@ function receivePrivateMessage(payload, timestamp) {
 function receiveGroupMessage(payload, timestamp) {
     const group = state.groups.find((item) => item.id === payload.groupId);
     const message = {
+        id: payload.id,
         groupId: payload.groupId,
+        groupName: payload.groupName,
         from: payload.from,
         fromId: payload.fromId,
         text: payload.text,
+        replyTo: payload.replyTo || null,
         timestamp,
         kind: 'group'
     };
@@ -1749,23 +1752,9 @@ function handleMessageSubmit(event) {
         });
 
         if (sent) {
-            const conversation = ensurePrivateConversation(activeUser.nickname);
-            const message = {
-                from: state.nickname,
-                fromId: state.selfId,
-                to: activeUser.nickname,
-                text,
-                timestamp,
-                kind: 'private',
-                direction: 'out',
-                ...(replyTo ? { replyTo } : {})
-            };
-            conversation.messages.push(message);
-            conversation.messages = conversation.messages.slice(-300);
-            conversation.updatedAt = timestamp;
-            saveLocalState();
-            renderChatList();
-            renderMessage(message);
+            // El servidor devolverá el evento private_msg con el id real del mensaje.
+            // No se pinta de forma optimista para evitar duplicados y para que acciones
+            // como reaccionar, editar o eliminar tengan siempre un messageId válido.
         }
     }
 
