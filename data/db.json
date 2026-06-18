@@ -228,6 +228,12 @@
       "userId": "d07b6fd5-c56d-4e49-a578-b61f791e0f60",
       "createdAt": "2026-06-18T16:00:26.338Z",
       "expiresAt": "2026-07-18T16:00:26.338Z"
+    },
+    {
+      "token": "b4bf2aa40ab64ace061105598dd1d6ed80a46a4e4048caaf8b3c2ffc9c9e2231",
+      "userId": "54bf187c-5a0a-4baa-93c8-df35b67c17f6",
+      "createdAt": "2026-06-18T16:37:44.961Z",
+      "expiresAt": "2026-07-18T16:37:44.961Z"
     }
   ],
   "globalHistory": [
@@ -917,6 +923,51 @@
       "toNickname": "veca",
       "text": "sfasfas",
       "timestamp": "2026-06-18T15:52:47.961Z"
+    },
+    {
+      "id": "38032f17-33c3-48fb-9a67-59053d6e1c99",
+      "fromId": "54bf187c-5a0a-4baa-93c8-df35b67c17f6",
+      "fromNickname": "Mary",
+      "toId": "82d9ac47-5af6-41db-9e4e-94d6e678bdcb",
+      "toNickname": "Nelly",
+      "text": "efrey",
+      "timestamp": "2026-06-18T16:38:37.683Z"
+    },
+    {
+      "id": "285c7392-eb40-40ea-9fbe-c4e41dab6e7e",
+      "fromId": "82d9ac47-5af6-41db-9e4e-94d6e678bdcb",
+      "fromNickname": "Nelly",
+      "toId": "54bf187c-5a0a-4baa-93c8-df35b67c17f6",
+      "toNickname": "Mary",
+      "text": "12",
+      "timestamp": "2026-06-18T16:50:22.259Z"
+    },
+    {
+      "id": "f113072a-6d1c-4669-8e14-c26e15b52d09",
+      "fromId": "82d9ac47-5af6-41db-9e4e-94d6e678bdcb",
+      "fromNickname": "Nelly",
+      "toId": "54bf187c-5a0a-4baa-93c8-df35b67c17f6",
+      "toNickname": "Mary",
+      "text": "hj",
+      "timestamp": "2026-06-18T16:52:29.475Z"
+    },
+    {
+      "id": "eaae3bd5-ee2a-4862-8b4b-d8282c50c9b8",
+      "fromId": "d07b6fd5-c56d-4e49-a578-b61f791e0f60",
+      "fromNickname": "veca",
+      "toId": "9f728713-e3f4-4a6f-8183-0e5625b43b45",
+      "toNickname": "78KARLA",
+      "text": "sdasd",
+      "timestamp": "2026-06-18T16:55:14.316Z"
+    },
+    {
+      "id": "bdde150b-a892-4404-81a5-0ea72659afc0",
+      "fromId": "d07b6fd5-c56d-4e49-a578-b61f791e0f60",
+      "fromNickname": "veca",
+      "toId": "9f728713-e3f4-4a6f-8183-0e5625b43b45",
+      "toNickname": "78KARLA",
+      "text": "vxczvz",
+      "timestamp": "2026-06-18T16:55:42.619Z"
     }
   ],
   "groups": [
