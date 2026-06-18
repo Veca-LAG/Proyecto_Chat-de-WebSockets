@@ -659,6 +659,7 @@ async function handleMessage(ws, payload, timestamp) {
         fromId: user.id,
         from: user.nickname,
         text,
+        replyTo: payload.replyTo || null,
         timestamp: timestamp || new Date().toISOString()
     };
 
@@ -693,6 +694,7 @@ async function handlePrivate(ws, payload, timestamp) {
         toId: targetUser.id,
         to: targetUser.nickname,
         text,
+        replyTo: payload.replyTo || null,
         timestamp: timestamp || new Date().toISOString()
     };
 
@@ -757,6 +759,141 @@ async function handleDeletePrivateMessage(ws, payload) {
         },
         originConnectionId: ws.connectionId
     });
+}
+
+async function handleDeleteGlobalMessage(ws, payload) {
+    const requester = users.get(ws);
+    const id = sanitizeText(payload.id, 80);
+
+    if (!requester?.id || !id) {
+        sendJson(ws, { type: 'error', payload: { text: 'Solicitud de eliminación inválida.' }, timestamp: new Date().toISOString() });
+        return;
+    }
+
+    const result = await pool.query('SELECT * FROM global_messages WHERE id = $1 LIMIT 1', [id]);
+    const message = result.rows[0];
+
+    if (!message) {
+        sendJson(ws, { type: 'error', payload: { text: 'Mensaje no encontrado o ya fue eliminado.' }, timestamp: new Date().toISOString() });
+        return;
+    }
+
+    if (message.from_id !== requester.id) {
+        sendJson(ws, { type: 'error', payload: { text: 'Solo puedes eliminar mensajes enviados por ti.' }, timestamp: new Date().toISOString() });
+        return;
+    }
+
+    await pool.query('DELETE FROM global_messages WHERE id = $1', [id]);
+
+    await publishCluster({
+        event: 'global_delete',
+        payload: { id },
+        originConnectionId: ws.connectionId
+    });
+}
+
+async function handleDeleteGroupMessage(ws, payload) {
+    const requester = users.get(ws);
+    const id = sanitizeText(payload.id, 80);
+    const groupId = sanitizeText(payload.groupId, 80);
+
+    if (!requester?.id || !id || !groupId) {
+        sendJson(ws, { type: 'group_error', payload: { text: 'Solicitud de eliminación inválida.' }, timestamp: new Date().toISOString() });
+        return;
+    }
+
+    const result = await pool.query('SELECT * FROM group_messages WHERE id = $1 LIMIT 1', [id]);
+    const message = result.rows[0];
+
+    if (!message) {
+        sendJson(ws, { type: 'group_error', payload: { text: 'Mensaje no encontrado o ya fue eliminado.' }, timestamp: new Date().toISOString() });
+        return;
+    }
+
+    if (message.from_id !== requester.id) {
+        sendJson(ws, { type: 'group_error', payload: { text: 'Solo puedes eliminar mensajes enviados por ti.' }, timestamp: new Date().toISOString() });
+        return;
+    }
+
+    await pool.query('DELETE FROM group_messages WHERE id = $1', [id]);
+
+    const membersResult = await pool.query('SELECT user_id FROM group_members WHERE group_id = $1', [groupId]);
+    await publishCluster({
+        event: 'group_delete',
+        payload: { id, groupId },
+        memberIds: membersResult.rows.map((row) => row.user_id),
+        originConnectionId: ws.connectionId
+    });
+}
+
+async function handleEditMessage(ws, payload) {
+    const requester = users.get(ws);
+    const id      = sanitizeText(payload.id,   80);
+    const newText = sanitizeText(payload.text, MAX_MESSAGE_LENGTH);
+    const kind    = payload.kind;
+
+    if (!requester?.id || !id || !newText || !kind) {
+        sendJson(ws, { type: 'error', payload: { text: 'Edición inválida.' }, timestamp: new Date().toISOString() });
+        return;
+    }
+
+    if (kind === 'global') {
+        const { rows } = await pool.query('SELECT * FROM global_messages WHERE id = $1 LIMIT 1', [id]);
+        const msg = rows[0];
+        if (!msg || msg.from_id !== requester.id) {
+            sendJson(ws, { type: 'error', payload: { text: 'No puedes editar este mensaje.' }, timestamp: new Date().toISOString() });
+            return;
+        }
+        await pool.query('UPDATE global_messages SET text = $1 WHERE id = $2', [newText, id]);
+        await publishCluster({ event: 'message_edited', payload: { id, text: newText, kind: 'global' } });
+
+    } else if (kind === 'private') {
+        const { rows } = await pool.query('SELECT * FROM private_messages WHERE id = $1 LIMIT 1', [id]);
+        const msg = rows[0];
+        if (!msg || msg.from_id !== requester.id) {
+            sendJson(ws, { type: 'private_error', payload: { text: 'No puedes editar este mensaje.' }, timestamp: new Date().toISOString() });
+            return;
+        }
+        await pool.query('UPDATE private_messages SET text = $1 WHERE id = $2', [newText, id]);
+        await publishCluster({ event: 'message_edited', payload: { id, text: newText, kind: 'private', fromId: msg.from_id, toId: msg.to_id } });
+
+    } else if (kind === 'group') {
+        const { rows } = await pool.query('SELECT * FROM group_messages WHERE id = $1 LIMIT 1', [id]);
+        const msg = rows[0];
+        if (!msg || msg.from_id !== requester.id) {
+            sendJson(ws, { type: 'group_error', payload: { text: 'No puedes editar este mensaje.' }, timestamp: new Date().toISOString() });
+            return;
+        }
+        await pool.query('UPDATE group_messages SET text = $1 WHERE id = $2', [newText, id]);
+        const members = await pool.query('SELECT user_id FROM group_members WHERE group_id = $1', [msg.group_id]);
+        await publishCluster({ event: 'message_edited', payload: { id, text: newText, kind: 'group' }, memberIds: members.rows.map((r) => r.user_id) });
+    }
+}
+
+async function handleReactMessage(ws, payload) {
+    const user = users.get(ws);
+    if (!user?.id) return;
+
+    const messageId = sanitizeText(String(payload.messageId || ''), 80);
+    const emoji     = String(payload.emoji || '').slice(0, 8);
+    const action    = payload.action === 'remove' ? 'remove' : 'add';
+    const kind      = payload.kind;
+    const groupId   = payload.groupId || null;
+    const targetId  = payload.targetId || null;
+
+    if (!messageId || !emoji || !kind) return;
+
+    const reactPayload = { messageId, emoji, userId: user.id, action, kind };
+
+    if (kind === 'global') {
+        await publishCluster({ event: 'message_reaction', payload: reactPayload });
+    } else if (kind === 'private') {
+        await publishCluster({ event: 'message_reaction', payload: { ...reactPayload, targetIds: [user.id, targetId].filter(Boolean) } });
+    } else if (kind === 'group' && groupId) {
+        const membersResult = await pool.query('SELECT user_id FROM group_members WHERE group_id = $1', [groupId]);
+        const memberIds = membersResult.rows.map((r) => r.user_id);
+        await publishCluster({ event: 'message_reaction', payload: { ...reactPayload, memberIds } });
+    }
 }
 
 async function handleCreateGroup(ws, payload) {
@@ -921,6 +1058,7 @@ async function handleGroupMessage(ws, payload, timestamp) {
         fromId: sender.id,
         from: sender.nickname,
         text,
+        replyTo: payload.replyTo || null,
         timestamp: timestamp || new Date().toISOString()
     };
 
@@ -987,6 +1125,39 @@ async function handleClusterEvent(rawMessage) {
         case 'private_delete':
             sendToLocalUser(data.payload.toId, { type: 'private_delete', payload: { id: data.payload.id }, timestamp });
             sendToLocalUser(data.payload.fromId, { type: 'private_delete', payload: { id: data.payload.id }, timestamp });
+            break;
+        case 'global_delete':
+            broadcastLocal({ type: 'global_delete', payload: { id: data.payload.id }, timestamp });
+            break;
+        case 'group_delete':
+            (data.memberIds || []).forEach((memberId) => {
+                sendToLocalUser(memberId, { type: 'group_delete', payload: { id: data.payload.id }, timestamp });
+            });
+            break;
+        case 'message_edited':
+            if (data.payload.kind === 'global') {
+                broadcastLocal({ type: 'message_edited', payload: data.payload, timestamp });
+            } else if (data.payload.kind === 'private') {
+                sendToLocalUser(data.payload.fromId, { type: 'message_edited', payload: data.payload, timestamp });
+                sendToLocalUser(data.payload.toId,   { type: 'message_edited', payload: data.payload, timestamp });
+            } else if (data.payload.kind === 'group') {
+                (data.memberIds || []).forEach((memberId) => {
+                    sendToLocalUser(memberId, { type: 'message_edited', payload: data.payload, timestamp });
+                });
+            }
+            break;
+        case 'message_reaction':
+            if (data.payload.kind === 'global') {
+                broadcastLocal({ type: 'message_reaction', payload: data.payload, timestamp });
+            } else if (data.payload.kind === 'private') {
+                (data.payload.targetIds || []).forEach((uid) => {
+                    sendToLocalUser(uid, { type: 'message_reaction', payload: data.payload, timestamp });
+                });
+            } else if (data.payload.kind === 'group') {
+                (data.payload.memberIds || []).forEach((uid) => {
+                    sendToLocalUser(uid, { type: 'message_reaction', payload: data.payload, timestamp });
+                });
+            }
             break;
         case 'group_msg':
             (data.memberIds || []).forEach((memberId) => {
@@ -1059,6 +1230,18 @@ async function handleSocketMessage(ws, rawMessage) {
                 break;
             case 'delete_private_message':
                 await handleDeletePrivateMessage(ws, payload);
+                break;
+            case 'delete_global_message':
+                await handleDeleteGlobalMessage(ws, payload);
+                break;
+            case 'delete_group_message':
+                await handleDeleteGroupMessage(ws, payload);
+                break;
+            case 'edit_message':
+                await handleEditMessage(ws, payload);
+                break;
+            case 'react_message':
+                await handleReactMessage(ws, payload);
                 break;
             case 'typing': await handleTyping(ws, payload); break;
             case 'create_group': await handleCreateGroup(ws, payload); break;

@@ -34,7 +34,7 @@ export function clearPrivateMode({ titleElement, subtitleElement, exitButton }) 
  * @param {string} options.timestamp Fecha ISO del mensaje.
  * @returns {boolean} True si el envío se solicitó correctamente.
  */
-export function sendPrivate({ socketSender, targetUser, text, timestamp }) {
+export function sendPrivate({ socketSender, targetUser, text, timestamp, replyTo = null }) {
     if (!targetUser || !targetUser.id) {
         return false;
     }
@@ -43,7 +43,8 @@ export function sendPrivate({ socketSender, targetUser, text, timestamp }) {
         type: 'private',
         payload: {
             targetId: targetUser.id,
-            text
+            text,
+            ...(replyTo ? { replyTo } : {})
         },
         timestamp
     });
