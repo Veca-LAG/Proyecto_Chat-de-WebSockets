@@ -8,6 +8,8 @@ import { setReplyingTo, clearReplyingTo, renderReplyQuote } from './modules/mess
 import { initMessageActions, getDeletedForMe, showDeleteDialog, markMessageDeletedEverywhere } from './modules/messageActions.js';
 import { setupEmojiPicker } from './modules/emojiPicker.js';
 import { setupModerationUI, updateCensorshipLabel } from './modules/moderationSettings.js';
+import { upsertProfile, getProfile, renderAvatarContent, applyPresenceDot, openQuickProfile } from './modules/profile.js';
+import { openProfileModal, setupProfileModal } from './modules/profileModal.js';
 
 // ── SPLASH SCREEN ──────────────────────────────────────────────────────────
 (function initSplash() {
@@ -503,9 +505,12 @@ function canSendToActiveChat() {
  * Actualiza la identidad visible del usuario actual.
  */
 function updateSelfIdentity() {
-    elements.selfNickname.textContent = state.nickname || 'Sin conectar';
-    elements.selfAvatar.textContent = state.nickname ? getInitials(state.nickname) : 'Tú';
+    const profile = state.selfId ? getProfile(state.selfId) : null;
+    elements.selfNickname.textContent = profile?.displayName || state.nickname || 'Sin conectar';
     elements.selfCode.textContent = state.userCode || 'Sin código';
+    renderAvatarContent(elements.selfAvatar, profile || { displayName: state.nickname });
+    const selfDot = document.getElementById('selfPresenceDot');
+    if (selfDot) applyPresenceDot(selfDot, profile?.presenceStatus || 'online');
 }
 
 /**
@@ -721,6 +726,27 @@ function handleServerMessage(rawMessage) {
             if (state.activeChat?.type === 'global') {
                 renderSystemMessage(payload.text || 'Evento del sistema', timestamp);
             }
+            break;
+        case 'my_profile':
+            upsertProfile(payload);
+            updateSelfIdentity();
+            break;
+        case 'user_profile':
+            upsertProfile(payload);
+            break;
+        case 'profile_updated':
+            upsertProfile(payload);
+            if (payload.userId === state.selfId) updateSelfIdentity();
+            break;
+        case 'presence_updated': {
+            upsertProfile({ userId: payload.userId, presenceStatus: payload.presenceStatus });
+            if (payload.userId === state.selfId) {
+                const selfDot = document.getElementById('selfPresenceDot');
+                if (selfDot) applyPresenceDot(selfDot, payload.presenceStatus);
+            }
+            break;
+        }
+        case 'profile_error':
             break;
         default:
             break;
@@ -2124,6 +2150,21 @@ function initApp() {
     elements.conversationSearchInput.addEventListener('input', applyConversationSearch);
     elements.deleteConversationButton.addEventListener('click', deleteActiveConversation);
     setupModerationUI(elements, state, sendJson);
+    setupProfileModal(sendJson);
+
+    document.getElementById('selfProfileButton')?.addEventListener('click', (e) => {
+        e.stopPropagation();
+        const profile = state.selfId ? getProfile(state.selfId) : null;
+        if (!profile) return;
+        openQuickProfile(
+            profile,
+            e.currentTarget,
+            () => openProfileModal(getProfile(state.selfId) || profile, sendJson),
+            null,
+            sendJson
+        );
+    });
+
     document.addEventListener('click', handleDocumentClick);
 
     document.getElementById('closeAddMembersButton').addEventListener('click', () => {

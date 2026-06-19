@@ -42,10 +42,11 @@
                 alt="Logo de Ola"
                 class="login-logo"
                 >
-                <div>
-                    <h1 id="loginTitle">Ola</h1>
-                    <p id="loginDescription">Inicia sesión con tu cuenta para continuar en cualquier dispositivo.</p>
-                </div>
+                <h1 id="loginTitle">Ola</h1>
+                
+            </div>
+            <div>
+                <p id="loginDescription">Inicia sesión con tu cuenta para continuar en cualquier dispositivo.</p>
             </div>
 
             <div class="auth-tabs" role="tablist" aria-label="Tipo de acceso">
@@ -154,12 +155,15 @@
             </section>
 
             <footer class="sidebar-profile" aria-label="Perfil actual">
-                <div class="profile-mini-avatar" id="selfAvatar" aria-hidden="true">Tú</div>
-                <div class="profile-mini-text">
-                    <strong id="selfNickname">Sin conectar</strong>
-                    <p id="selfCode" class="profile-code">Sin código</p>
-                    <p id="connectionStatus" class="connection-status disconnected">Desconectado</p>
-                </div>
+                <button class="profile-footer-trigger" id="selfProfileButton" type="button" aria-haspopup="true" aria-expanded="false" aria-label="Ver perfil">
+                    <div class="profile-mini-avatar up-avatar" id="selfAvatar" aria-hidden="true">Tú</div>
+                    <div class="profile-mini-text">
+                        <strong id="selfNickname">Sin conectar</strong>
+                        <p id="selfCode" class="profile-code">Sin código</p>
+                        <p id="connectionStatus" class="connection-status disconnected">Desconectado</p>
+                    </div>
+                    <span class="presence-dot presence-dot--online" id="selfPresenceDot" aria-hidden="true"></span>
+                </button>
                 <button class="icon-button logout-button" id="logoutButton" type="button" aria-label="Cerrar sesión" title="Cerrar sesión">⎋</button>
             </footer>
         </aside>
@@ -285,6 +289,131 @@
             </div>
             <small id="inviteLinkCopied" style="color: var(--color-success); display:none;">¡Enlace copiado!</small>
         </div>
+    </div>
+
+    <!-- ── POPUP RÁPIDO DE PERFIL PROPIO ── -->
+    <div class="profile-quick-popup hidden" id="profileQuickPopup" role="dialog" aria-modal="true" aria-label="Tu perfil">
+        <div class="pqp-banner" data-pf="banner"></div>
+        <div class="pqp-avatar-wrap">
+            <div class="pqp-avatar up-avatar" id="pqpSelfAvatar" aria-hidden="true"></div>
+            <span class="presence-dot presence-dot--online" data-pf="presence-dot" aria-hidden="true"></span>
+        </div>
+        <div class="pqp-body">
+            <p class="pqp-display-name" data-pf="display-name"></p>
+            <p class="pqp-username" data-pf="username"></p>
+            <p class="pqp-custom-status" data-pf="custom-status" style="display:none"></p>
+        </div>
+        <hr class="pqp-divider">
+        <button class="pqp-action" id="popupEditProfileBtn" type="button">
+            <span aria-hidden="true">✎</span> Editar perfil
+        </button>
+        <button class="pqp-action pqp-status-row" id="popupStatusRow" type="button">
+            <span class="presence-dot presence-dot--online" aria-hidden="true"></span>
+            <span data-pf="presence-label">En línea</span>
+            <span class="pqp-chevron" aria-hidden="true">›</span>
+        </button>
+    </div>
+
+    <!-- ── MENÚ DE ESTADOS DE PRESENCIA ── -->
+    <div class="presence-menu hidden" id="presenceMenu" role="menu" aria-label="Estado de presencia"></div>
+
+    <!-- ── TARJETA DE PERFIL DE OTRO USUARIO ── -->
+    <div class="user-profile-card hidden" id="userProfileCard" role="dialog" aria-modal="true" aria-label="Perfil de usuario">
+        <div class="upc-banner" data-pf="banner"></div>
+        <div class="upc-avatar-wrap">
+            <div class="upc-avatar up-avatar" aria-hidden="true"></div>
+            <span class="presence-dot presence-dot--online" aria-hidden="true"></span>
+        </div>
+        <div class="upc-body">
+            <p class="upc-display-name" data-pf="display-name"></p>
+            <p class="upc-username" data-pf="username"></p>
+            <p class="upc-custom-status" data-pf="custom-status" style="display:none"></p>
+            <p class="upc-bio" data-pf="bio" style="display:none"></p>
+        </div>
+    </div>
+
+    <!-- ── MODAL EDITAR PERFIL ── -->
+    <div class="modal-backdrop hidden" id="profileEditModal" role="dialog" aria-modal="true" aria-labelledby="profileEditTitle">
+        <div class="profile-edit-card">
+
+            <!-- Cabecera -->
+            <header class="pe-header">
+                <h2 id="profileEditTitle">Editar perfil</h2>
+                <button class="icon-button" id="peCloseBtn" type="button" aria-label="Cerrar">✕</button>
+            </header>
+
+            <!-- Cuerpo: formulario + vista previa -->
+            <div class="pe-body">
+
+                <!-- Formulario -->
+                <form class="pe-form" id="profileEditForm" autocomplete="off">
+                    <input type="file" id="peAvatarInput" accept="image/png,image/jpeg,image/webp" style="display:none" aria-hidden="true">
+
+                    <div class="pe-avatar-section">
+                        <div class="pe-avatar-preview up-avatar" id="peAvatarPreview" aria-hidden="true"></div>
+                        <div class="pe-avatar-actions">
+                            <button class="secondary-button" id="peChangeAvatarBtn" type="button">Cambiar avatar</button>
+                            <button class="secondary-button" id="peRemoveAvatarBtn" type="button">Eliminar avatar</button>
+                        </div>
+                    </div>
+
+                    <div class="pe-field">
+                        <label for="peDisplayName">Nombre visible <span class="char-count" id="peDisplayNameCount">0/40</span></label>
+                        <input type="text" id="peDisplayName" maxlength="40" placeholder="Tu nombre visible">
+                    </div>
+
+                    <div class="pe-field">
+                        <label for="pePronouns">Pronombres <span class="char-count" id=pePronounsCount>0/40</span></label>
+                        <input type="text" id="pePronouns" maxlength="40" placeholder="ej. él/su · ella/su">
+                    </div>
+
+                    <div class="pe-field">
+                        <label for="peCustomStatus">Estado personalizado <span class="char-count" id="peCustomStatusCount">0/80</span></label>
+                        <div class="pe-status-row">
+                            <input type="text" id="peStatusEmoji" maxlength="4" placeholder="😊" class="pe-emoji-input">
+                            <input type="text" id="peCustomStatus" maxlength="80" placeholder="ej. Disponible, En reunión…">
+                        </div>
+                    </div>
+
+                    <div class="pe-field">
+                        <label for="peBio">Biografía <span class="char-count" id="peBioCount">0/190</span></label>
+                        <textarea id="peBio" maxlength="190" rows="3" placeholder="Cuéntanos algo sobre ti…"></textarea>
+                    </div>
+
+                    <div class="pe-field">
+                        <label for="peBannerColor">Color de banner</label>
+                        <div class="pe-color-row">
+                            <input type="color" id="peBannerColor" value="#fbbf24">
+                            <span class="pe-color-hint">Color del encabezado de tu perfil</span>
+                        </div>
+                    </div>
+
+                    <footer class="pe-actions">
+                        <button class="secondary-button" id="peCancelBtn" type="button">Cancelar</button>
+                        <button class="primary-button" type="submit">Guardar cambios</button>
+                    </footer>
+                </form>
+
+                <!-- Vista previa -->
+                <aside class="pe-preview" aria-label="Vista previa del perfil">
+                    <p class="pe-preview-label">Vista previa</p>
+                    <div class="pe-preview-card">
+                        <div class="pe-preview-banner" id="pvBanner"></div>
+                        <div class="pe-preview-avatar-wrap">
+                            <div class="pe-preview-avatar up-avatar" id="pvAvatar" aria-hidden="true"></div>
+                        </div>
+                        <div class="pe-preview-body">
+                            <p class="pe-preview-name" id="pvDisplayName"></p>
+                            <p class="pe-preview-username" id="pvUsername"></p>
+                            <p class="pe-preview-status" id="pvCustomStatus" style="display:none"></p>
+                            <p class="pe-preview-bio" id="pvBio" style="display:none"></p>
+                            <p class="pe-preview-pronouns" id="pvPronouns" style="display:none"></p>
+                        </div>
+                    </div>
+                </aside>
+
+            </div><!-- /pe-body -->
+        </div><!-- /profile-edit-card -->
     </div>
 
     <script type="module" src="app.js"></script>
