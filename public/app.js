@@ -4,7 +4,7 @@ import { getStoredSession, saveSession, clearSession, hasValidStoredSession } fr
 import { setupTypingEvents, handleTypingStatus, clearTypingIndicator } from './modules/typing.js';
 import { initEmojiPicker } from './emoji/picker.js';
 import { initNotify, playNotify } from './sounds/notify.js';
-import { buildMessageMenu, startInlineEdit, addEditedTag, refreshReactionBar, showMiniToast, applyIncomingReaction } from './modules/messageMenu.js';
+import { buildMessageMenu, startInlineEdit, addEditedTag, refreshReactionBar, showMiniToast, applyIncomingReaction, applyReactionSnapshot } from './modules/messageMenu.js';
 import { setReplyingTo, clearReplyingTo, renderReplyQuote } from './modules/messageReply.js';
 
 // ── SPLASH SCREEN ──────────────────────────────────────────────────────────
@@ -88,7 +88,8 @@ const state = {
     reconnectAttempts: 0,
     shouldReconnect: false,
     replyingTo: null,
-    unreadCounts: {}
+    unreadCounts: {},
+    censorshipEnabled: true
 };
 
 const elements = {
@@ -151,7 +152,8 @@ const elements = {
     chatMenuButton: document.getElementById('chatMenuButton'),
     chatMenu: document.getElementById('chatMenu'),
     deleteConversationButton: document.getElementById('deleteConversationButton'),
-    typingIndicator: document.getElementById('typingIndicator')
+    typingIndicator: document.getElementById('typingIndicator'),
+    toggleCensorshipButton: document.getElementById('toggleCensorshipButton')
 };
 
 /**
@@ -693,7 +695,19 @@ function handleServerMessage(rawMessage) {
             handleMessageEdited(payload);
             break;
         case 'message_reaction':
-            applyIncomingReaction(payload.messageId, payload.emoji, payload.userId, payload.action, state.selfId);
+            if (Array.isArray(payload.reactions)) {
+                applyReactionSnapshot(payload.messageId, payload.reactions, state.selfId);
+            } else {
+                applyIncomingReaction(payload.messageId, payload.emoji, payload.userId, payload.action, state.selfId);
+            }
+            break;
+        case 'group_deleted':
+            handleGroupDeleted(payload);
+            break;
+        case 'censorship_updated':
+            state.censorshipEnabled = Boolean(payload.enabled);
+            updateCensorshipButton();
+            showMiniToast(state.censorshipEnabled ? 'Censura activada' : 'Censura desactivada');
             break;
         case 'group_msg':
             receiveGroupMessage(payload, timestamp);
@@ -1177,9 +1191,31 @@ function renderProfileGroupMembers(group) {
     title.textContent = 'Miembros';
     const list = document.createElement('ul');
 
+    const selfMember = (group?.members || []).find((member) => member.id === state.selfId);
+    const selfRole = selfMember?.role || group?.selfRole || (group?.createdBy === state.selfId ? 'owner' : 'member');
+    const canPromote = selfRole === 'owner';
+    const canAdminGroup = selfRole === 'owner' || selfRole === 'admin';
+
     (group?.members || []).forEach((member) => {
         const item = document.createElement('li');
-        item.textContent = `${member.nickname}${member.id === state.selfId ? ' (Tú)' : ''}`;
+        item.className = 'group-member-row';
+
+        const name = document.createElement('span');
+        const role = member.role || (member.id === group?.createdBy ? 'owner' : 'member');
+        const roleLabel = role === 'owner' ? 'Owner' : role === 'admin' ? 'Admin' : 'Miembro';
+        name.textContent = `${member.nickname}${member.id === state.selfId ? ' (Tú)' : ''} · ${roleLabel}`;
+        item.appendChild(name);
+
+        if (canPromote && member.id !== state.selfId && role !== 'admin' && role !== 'owner') {
+            const promoteBtn = document.createElement('button');
+            promoteBtn.type = 'button';
+            promoteBtn.className = 'group-mini-action';
+            promoteBtn.textContent = 'Hacer admin';
+            promoteBtn.addEventListener('click', () => {
+                sendJson({ type: 'promote_group_admin', payload: { groupId: group.id, targetUserId: member.id }, timestamp: new Date().toISOString() });
+            });
+            item.appendChild(promoteBtn);
+        }
         list.appendChild(item);
     });
 
@@ -1198,7 +1234,39 @@ function renderProfileGroupMembers(group) {
     inviteBtn.textContent = '🔗 Enlace de invitación';
     inviteBtn.addEventListener('click', () => requestInviteLink(group));
 
-    actions.append(addBtn, inviteBtn);
+    const leaveBtn = document.createElement('button');
+    leaveBtn.type = 'button';
+    leaveBtn.className = 'secondary-button';
+    leaveBtn.textContent = '🚪 Salir del grupo';
+    leaveBtn.addEventListener('click', () => {
+        if (confirm('¿Deseas salir de este grupo?')) {
+            sendJson({ type: 'leave_group', payload: { groupId: group.id }, timestamp: new Date().toISOString() });
+        }
+    });
+
+    const hideBtn = document.createElement('button');
+    hideBtn.type = 'button';
+    hideBtn.className = 'secondary-button';
+    hideBtn.textContent = '🧹 Eliminar chat';
+    hideBtn.addEventListener('click', () => {
+        sendJson({ type: 'hide_group_chat', payload: { groupId: group.id }, timestamp: new Date().toISOString() });
+    });
+
+    actions.append(addBtn, inviteBtn, hideBtn, leaveBtn);
+
+    if (canAdminGroup) {
+        const deleteGroupBtn = document.createElement('button');
+        deleteGroupBtn.type = 'button';
+        deleteGroupBtn.className = 'secondary-button danger-button';
+        deleteGroupBtn.textContent = '🗑 Eliminar grupo para todos';
+        deleteGroupBtn.addEventListener('click', () => {
+            if (confirm('Esta acción eliminará el grupo para todos. ¿Continuar?')) {
+                sendJson({ type: 'delete_group_everyone', payload: { groupId: group.id }, timestamp: new Date().toISOString() });
+            }
+        });
+        actions.appendChild(deleteGroupBtn);
+    }
+
     elements.profileExtra.append(title, list, actions);
 }
 
@@ -1238,17 +1306,20 @@ function renderMessage(message) {
     const isOwn = message.fromId && message.fromId === state.selfId;
     const messageKind = message.kind || 'global';
 
-    // Guardamos el ID del mensaje en el elemento DOM usando dataset
-    if (message.id) {
-        messageElement.dataset.messageId = message.id;
-    }
+    if (message.id) messageElement.dataset.messageId = message.id;
+    messageElement.dataset.kind = messageKind;
+    if (message.groupId) messageElement.dataset.groupId = message.groupId;
+
+    const deletedForAll = Boolean(message.deletedForAll || message.deleted_for_all);
+    const deletedBy = message.deletedBy || message.deleted_by || null;
 
     messageElement.className = [
         'message',
         isOwn ? 'message-own' : 'message-other',
         messageKind === 'private' ? 'message-private' : '',
         messageKind === 'group' ? 'message-group' : '',
-        message.historical ? 'message-historical' : ''
+        message.historical ? 'message-historical' : '',
+        deletedForAll ? 'message-is-deleted' : ''
     ].filter(Boolean).join(' ');
 
     const metaElement = document.createElement('div');
@@ -1267,60 +1338,85 @@ function renderMessage(message) {
     const timeElement = document.createElement('time');
     timeElement.dateTime = message.timestamp || new Date().toISOString();
     timeElement.textContent = formatTime(message.timestamp);
-
-    const textElement = document.createElement('p');
-    textElement.className = 'message-content';
-    textElement.dataset.rawText = message.text || '';
-    textElement.textContent = message.text || '';
-
     metaElement.append(authorElement, timeElement);
 
-    // Bloque de cita si es una respuesta
+    if (message.isForwarded || message.is_forwarded) {
+        const forwarded = document.createElement('div');
+        forwarded.className = 'forwarded-label';
+        forwarded.textContent = '↪ Mensaje reenviado';
+        messageElement.appendChild(forwarded);
+    }
+
     if (message.replyTo) {
         const quote = renderReplyQuote(message.replyTo);
         if (quote) messageElement.append(quote);
     }
 
+    const textElement = document.createElement('p');
+    textElement.className = 'message-content';
+    const visibleText = deletedForAll
+        ? (deletedBy === state.selfId ? 'Eliminaste este mensaje' : 'Se eliminó este mensaje')
+        : (message.text || '');
+    textElement.dataset.rawText = visibleText;
+    textElement.textContent = visibleText;
+    if (deletedForAll) textElement.classList.add('message-deleted');
+
     messageElement.append(metaElement, textElement);
 
-    // Menú ⋮ para todos los mensajes
-    const currentId = messageElement.dataset.messageId || message.id;
+    if (Array.isArray(message.reactions)) {
+        applyReactionSnapshot(message.id, message.reactions, state.selfId);
+    }
+
     const menu = buildMessageMenu({
-        message,
+        message: { ...message, deletedForAll },
         messageElement,
         messageKind,
         isOwn,
         state,
         sendJsonFn: sendJson,
-        onReply:      (msg) => setReplyingTo(msg, state, elements),
-        onStartEdit:  (msg, el) => startInlineEdit(msg, el, sendJson, messageKind),
-        onDeleteClick: () => showDeleteDialog(currentId, messageElement, message.text || '', messageKind, message.groupId || null),
+        onReply: (msg) => {
+            if (deletedForAll) return;
+            setReplyingTo(msg, state, elements);
+        },
+        onStartEdit: (msg, el) => startInlineEdit(msg, el, sendJson, messageKind),
+        onDeleteClick: () => showDeleteDialog({ ...message, deletedForAll }, messageElement, messageKind, message.groupId || null, isOwn),
     });
     messageElement.appendChild(menu);
 
     elements.messages.appendChild(messageElement);
+    if (message.id) refreshReactionBar(message.id, messageElement, state.selfId);
     applyConversationSearch();
     scrollToLastMessage();
-}/**
+}
+
+/**
  * Solicita eliminar un mensaje privado: confirma, notifica al servidor y borra localmente.
  * @param {string} messageId Id del mensaje a eliminar.
  * @param {HTMLElement} [targetElement] Elemento DOM del mensaje por si no tiene ID aún.
  */
 // ── SISTEMA DE ELIMINACIÓN ESTILO WHATSAPP ──────────────────────────────
 
-function showDeleteDialog(messageId, messageElement, messageText, messageKind = 'private', groupId = null) {
+function showDeleteDialog(message, messageElement, messageKind = 'private', groupId = null, isOwn = false) {
+    const messageId = message?.id;
+    const messageText = message?.text || '';
+
     const overlay = document.createElement('div');
     overlay.className = 'msg-delete-overlay';
 
     const sheet = document.createElement('div');
     sheet.className = 'msg-delete-sheet';
 
+    const title = document.createElement('h2');
+    title.className = 'msg-delete-title';
+    title.textContent = '¿Deseas eliminar este mensaje?';
+    sheet.appendChild(title);
+
     if (messageText) {
         const preview = document.createElement('div');
         preview.className = 'msg-delete-preview';
         const label = document.createElement('p');
         label.className = 'msg-delete-preview-label';
-        label.textContent = 'Mensaje';
+        label.textContent = message.from || message.nickname || 'Mensaje';
         const text = document.createElement('p');
         text.className = 'msg-delete-preview-text';
         text.textContent = messageText;
@@ -1328,27 +1424,25 @@ function showDeleteDialog(messageId, messageElement, messageText, messageKind = 
         sheet.appendChild(preview);
     }
 
-    function makeBtn(icon, label, cls, onClick) {
+    function makeBtn(label, cls, onClick) {
         const btn = document.createElement('button');
         btn.type = 'button';
         btn.className = `msg-delete-btn ${cls}`;
-        const iconSpan = document.createElement('span');
-        iconSpan.className = 'btn-icon';
-        iconSpan.textContent = icon;
-        const labelSpan = document.createElement('span');
-        labelSpan.textContent = label;
-        btn.append(iconSpan, labelSpan);
+        btn.textContent = label;
         btn.addEventListener('click', () => { overlay.remove(); onClick(); });
         return btn;
     }
 
-    sheet.appendChild(makeBtn('🗑️', 'Eliminar para todos', 'for-all', () => {
-        _deleteForAll(messageId, messageElement, messageKind, groupId);
-    }));
-    sheet.appendChild(makeBtn('👤', 'Eliminar para mí', 'for-me', () => {
+    if (isOwn && !message.deletedForAll) {
+        sheet.appendChild(makeBtn('Eliminar para todos', 'for-all', () => {
+            _deleteForAll(messageId, messageElement, messageKind, groupId);
+        }));
+    }
+
+    sheet.appendChild(makeBtn('Eliminar para mí', 'for-me', () => {
         _deleteForMe(messageId, messageElement, messageKind);
     }));
-    sheet.appendChild(makeBtn('✕', 'Cancelar', 'cancel', () => {}));
+    sheet.appendChild(makeBtn('Cancelar', 'cancel', () => {}));
 
     overlay.appendChild(sheet);
     document.body.appendChild(overlay);
@@ -1356,29 +1450,17 @@ function showDeleteDialog(messageId, messageElement, messageText, messageKind = 
 }
 
 function _deleteForAll(messageId, messageElement, messageKind = 'private', groupId = null) {
-    if (messageId) {
-        if (messageKind === 'global') {
-            sendJson({ type: 'delete_global_message', payload: { id: messageId }, timestamp: new Date().toISOString() });
-        } else if (messageKind === 'group') {
-            sendJson({ type: 'delete_group_message', payload: { id: messageId, groupId }, timestamp: new Date().toISOString() });
-        } else {
-            sendJson({ type: 'delete_private_message', payload: { id: messageId }, timestamp: new Date().toISOString() });
-        }
+    if (!messageId) return;
+    if (messageKind === 'global') {
+        sendJson({ type: 'delete_global_message', payload: { id: messageId }, timestamp: new Date().toISOString() });
+    } else if (messageKind === 'group') {
+        sendJson({ type: 'delete_group_message', payload: { id: messageId, groupId }, timestamp: new Date().toISOString() });
+    } else {
+        sendJson({ type: 'delete_private_message', payload: { id: messageId }, timestamp: new Date().toISOString() });
     }
-    if (messageElement) {
-        messageElement.remove();
-    } else if (messageId) {
-        const el = elements.messages.querySelector(`[data-message-id="${messageId}"]`);
-        if (el) el.remove();
-    }
-    _syncLocalStateAfterDelete(messageId, messageKind);
 }
 
 function _deleteForMe(messageId, messageElement, messageKind = 'private') {
-    const parent = messageElement?.parentNode;
-    const nextSibling = messageElement?.nextSibling;
-    const clone = messageElement?.cloneNode(true);
-
     if (messageElement) {
         messageElement.remove();
     } else if (messageId) {
@@ -1392,49 +1474,43 @@ function _deleteForMe(messageId, messageElement, messageKind = 'private') {
         saveDeletedForMe(deleted);
     }
 
-    _syncLocalStateAfterDelete(messageId, messageKind);
-
     showUndoToast(() => {
         if (messageId) {
             const deleted = getDeletedForMe();
             deleted.delete(messageId);
             saveDeletedForMe(deleted);
         }
-        if (clone && parent) {
-            if (nextSibling && nextSibling.parentNode === parent) {
-                parent.insertBefore(clone, nextSibling);
-            } else {
-                parent.appendChild(clone);
-            }
-        }
+        renderActiveChatMessages();
         applyConversationSearch();
     });
 }
 
-function _syncLocalStateAfterDelete(messageId, messageKind = 'private') {
-    if (!messageId) return;
-    let changed = false;
+function markMessageDeletedEverywhere(id, deletedBy) {
+    if (!id) return;
 
-    if (messageKind === 'global') {
-        const before = state.globalMessages.length;
-        state.globalMessages = state.globalMessages.filter((m) => m.id !== messageId);
-        changed = state.globalMessages.length !== before;
-    } else if (messageKind === 'private') {
-        Object.values(state.privateConversations).forEach((conv) => {
-            const idx = (conv.messages || []).findIndex((m) => m.id === messageId);
-            if (idx !== -1) {
-                conv.messages.splice(idx, 1);
-                conv.updatedAt = new Date().toISOString();
-                changed = true;
-            }
-        });
-        if (changed) {
-            saveLocalState();
-            renderChatList();
-            renderNavigation();
+    const replacementText = deletedBy === state.selfId ? 'Eliminaste este mensaje' : 'Se eliminó este mensaje';
+    const el = elements.messages.querySelector(`[data-message-id="${id}"]`);
+    if (el) {
+        el.classList.add('message-is-deleted');
+        const contentEl = el.querySelector('.message-content');
+        if (contentEl) {
+            contentEl.textContent = replacementText;
+            contentEl.dataset.rawText = replacementText;
+            contentEl.classList.add('message-deleted');
         }
     }
-    // group: solo DOM — el estado se gestiona desde el servidor vía group_delete
+
+    const apply = (msg) => {
+        if (!msg || msg.id !== id) return;
+        msg.deletedForAll = true;
+        msg.deletedBy = deletedBy;
+        msg.text = replacementText;
+    };
+
+    state.globalMessages.forEach(apply);
+    Object.values(state.privateConversations).forEach((conv) => (conv.messages || []).forEach(apply));
+    state.groups.forEach((group) => (group.history || []).forEach(apply));
+    saveLocalState();
 }
 
 let _undoToastTimer = null;
@@ -1600,9 +1676,14 @@ function receiveGroupMessage(payload, timestamp) {
         from: payload.from,
         fromId: payload.fromId,
         text: payload.text,
-        replyTo: payload.replyTo || null,
         timestamp,
-        kind: 'group'
+        kind: 'group',
+        replyTo: payload.replyTo || null,
+        isForwarded: Boolean(payload.isForwarded),
+        forwardedFromId: payload.forwardedFromId || null,
+        deletedForAll: Boolean(payload.deletedForAll),
+        deletedBy: payload.deletedBy || null,
+        reactions: payload.reactions || []
     };
 
     if (group) {
@@ -1629,47 +1710,27 @@ function receiveGroupMessage(payload, timestamp) {
  * @param {{id:string}} payload
  */
 function handlePrivateDelete(payload) {
-    const id = payload?.id;
-    if (!id) return;
-
-    // Eliminar del DOM
-    const el = elements.messages.querySelector(`[data-message-id="${id}"]`);
-    if (el) el.remove();
-
-    // Eliminar del estado local
-    let changed = false;
-    Object.values(state.privateConversations).forEach((conv) => {
-        const before = (conv.messages || []).length;
-        conv.messages = (conv.messages || []).filter((m) => m.id !== id);
-        if (conv.messages.length !== before) {
-            conv.updatedAt = new Date().toISOString();
-            changed = true;
-        }
-    });
-
-    if (changed) {
-        saveLocalState();
-        renderChatList();
-        renderNavigation();
-        if (state.activeChat?.type === 'private') renderActiveChatMessages();
-    }
+    markMessageDeletedEverywhere(payload?.id, payload?.deletedBy);
 }
 function handleGlobalDelete(payload) {
-    const id = payload?.id;
-    if (!id) return;
-
-    const el = elements.messages.querySelector(`[data-message-id="${id}"]`);
-    if (el) el.remove();
-
-    state.globalMessages = state.globalMessages.filter((m) => m.id !== id);
+    markMessageDeletedEverywhere(payload?.id, payload?.deletedBy);
 }
 
 function handleGroupDelete(payload) {
-    const id = payload?.id;
-    if (!id) return;
+    markMessageDeletedEverywhere(payload?.id, payload?.deletedBy);
+}
 
-    const el = elements.messages.querySelector(`[data-message-id="${id}"]`);
-    if (el) el.remove();
+function handleGroupDeleted(payload) {
+    const groupId = payload?.groupId;
+    if (!groupId) return;
+    state.groups = state.groups.filter((group) => group.id !== groupId);
+    if (state.activeChat?.type === 'group' && state.activeChat.id === groupId) {
+        state.activeSection = 'communities';
+        state.activeChat = null;
+        elements.messages.innerHTML = '';
+    }
+    renderChatList();
+    renderActiveChatShell();
 }
 
 function handleMessageEdited(payload) {
@@ -1732,7 +1793,7 @@ function handleMessageSubmit(event) {
     if (state.activeChat.type === 'global') {
         sendJson({
             type: 'message',
-            payload: { text, ...(replyTo ? { replyTo } : {}) },
+            payload: { text, isForwarded: false, ...(replyTo ? { replyTo, replyToId: replyTo.id } : {}) },
             timestamp
         });
     }
@@ -1748,13 +1809,12 @@ function handleMessageSubmit(event) {
             targetUser: activeUser,
             text,
             timestamp,
-            replyTo
+            replyTo,
+            isForwarded: false
         });
 
-        if (sent) {
-            // El servidor devolverá el evento private_msg con el id real del mensaje.
-            // No se pinta de forma optimista para evitar duplicados y para que acciones
-            // como reaccionar, editar o eliminar tengan siempre un messageId válido.
+        if (!sent) {
+            return;
         }
     }
 
@@ -1764,7 +1824,8 @@ function handleMessageSubmit(event) {
             payload: {
                 groupId: state.activeChat.id,
                 text,
-                ...(replyTo ? { replyTo } : {})
+                isForwarded: false,
+                ...(replyTo ? { replyTo, replyToId: replyTo.id } : {})
             },
             timestamp
         });
@@ -2001,10 +2062,10 @@ function deleteActiveConversation() {
     }
 
     if (state.activeChat.type === 'group') {
-        const group = state.groups.find((item) => item.id === state.activeChat.id);
-        if (group) {
-            group.history = [];
-        }
+        const groupId = state.activeChat.id;
+        sendJson({ type: 'hide_group_chat', payload: { groupId }, timestamp: new Date().toISOString() });
+        state.groups = state.groups.filter((item) => item.id !== groupId);
+        state.activeChat = null;
     }
 
     renderChatList();
@@ -2163,6 +2224,24 @@ function checkInviteToken() {
     }
 }
 
+
+function updateCensorshipButton() {
+    if (!elements.toggleCensorshipButton) return;
+    elements.toggleCensorshipButton.textContent = state.censorshipEnabled
+        ? 'Censura: activada'
+        : 'Censura: desactivada';
+}
+
+function toggleCensorshipPreference() {
+    state.censorshipEnabled = !state.censorshipEnabled;
+    updateCensorshipButton();
+    sendJson({
+        type: 'toggle_censorship',
+        payload: { enabled: state.censorshipEnabled },
+        timestamp: new Date().toISOString()
+    });
+}
+
 /**
  * Inicializa eventos principales de la aplicación.
  */
@@ -2209,6 +2288,8 @@ function initApp() {
     elements.closeConversationSearch.addEventListener('click', clearConversationSearch);
     elements.conversationSearchInput.addEventListener('input', applyConversationSearch);
     elements.deleteConversationButton.addEventListener('click', deleteActiveConversation);
+    elements.toggleCensorshipButton?.addEventListener('click', toggleCensorshipPreference);
+    updateCensorshipButton();
     document.addEventListener('click', handleDocumentClick);
 
     document.getElementById('closeAddMembersButton').addEventListener('click', () => {

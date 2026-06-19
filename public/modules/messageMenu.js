@@ -1,7 +1,8 @@
-// ── REACCIONES (localStorage + sync en tiempo real) ──────────────────────
-const REACTIONS_KEY   = 'ola_reactions';
+// ── REACCIONES (localStorage + sincronización en tiempo real) ─────────────
+const REACTIONS_KEY = 'ola_reactions';
 const QUICK_REACTIONS = ['👍', '❤️', '😂', '😮', '😢', '🙏'];
-const reactionHandlers = new Map();
+let currentOverlay = null;
+let longPressTimer = null;
 
 function getStoredReactions() {
     try { return JSON.parse(localStorage.getItem(REACTIONS_KEY) || '{}'); }
@@ -15,12 +16,11 @@ export function getMessageReactions(messageId) {
     return getStoredReactions()[messageId] || {};
 }
 
-// emoji → { users: [userId, ...] }
 function toggleReactionLocal(messageId, emoji, selfId) {
     const all = getStoredReactions();
     const msg = { ...(all[messageId] || {}) };
-    const entry = msg[emoji] ? { ...msg[emoji] } : { users: [] };
-    const idx   = entry.users.indexOf(selfId);
+    const entry = msg[emoji] ? { ...msg[emoji], users: [...(msg[emoji].users || [])] } : { users: [] };
+    const idx = entry.users.indexOf(selfId);
     const action = idx === -1 ? 'add' : 'remove';
     if (action === 'add') entry.users.push(selfId);
     else entry.users.splice(idx, 1);
@@ -30,14 +30,11 @@ function toggleReactionLocal(messageId, emoji, selfId) {
     return action;
 }
 
-/**
- * Aplica una reacción entrante desde el servidor (otro usuario reaccionó).
- * Actualiza localStorage y refresca la barra en el DOM.
- */
 export function applyIncomingReaction(messageId, emoji, userId, action, selfId) {
+    if (!messageId || !emoji || !userId) return;
     const all = getStoredReactions();
     const msg = { ...(all[messageId] || {}) };
-    const entry = msg[emoji] ? { ...msg[emoji] } : { users: [] };
+    const entry = msg[emoji] ? { ...msg[emoji], users: [...(msg[emoji].users || [])] } : { users: [] };
     const idx = entry.users.indexOf(userId);
     if (action === 'add' && idx === -1) entry.users.push(userId);
     if (action === 'remove' && idx !== -1) entry.users.splice(idx, 1);
@@ -49,7 +46,23 @@ export function applyIncomingReaction(messageId, emoji, userId, action, selfId) 
     if (el) refreshReactionBar(messageId, el, selfId || userId);
 }
 
+export function applyReactionSnapshot(messageId, reactions, selfId) {
+    if (!messageId || !Array.isArray(reactions)) return;
+    const all = getStoredReactions();
+    const msg = {};
+    for (const item of reactions) {
+        const emoji = item.emoji;
+        const users = Array.isArray(item.users) ? item.users : [];
+        if (emoji && users.length) msg[emoji] = { users };
+    }
+    if (Object.keys(msg).length === 0) delete all[messageId]; else all[messageId] = msg;
+    saveStoredReactions(all);
+    const el = document.querySelector(`[data-message-id="${messageId}"]`);
+    if (el) refreshReactionBar(messageId, el, selfId);
+}
+
 export function refreshReactionBar(messageId, messageElement, selfId) {
+    if (!messageId || !messageElement) return;
     let bar = messageElement.querySelector('.msg-reactions');
     const reactions = getMessageReactions(messageId);
     if (Object.keys(reactions).length === 0) { bar?.remove(); return; }
@@ -67,75 +80,20 @@ export function refreshReactionBar(messageId, messageElement, selfId) {
         pill.type = 'button';
         pill.className = `msg-reaction-pill${isMine ? ' mine' : ''}`;
         pill.title = isMine ? 'Quitar reacción' : `${count} reacción${count !== 1 ? 'es' : ''}`;
-
-        const emojiSpan = document.createElement('span');
-        emojiSpan.className = 'pill-emoji';
-        emojiSpan.textContent = emoji;
-
-        const countSpan = document.createElement('span');
-        countSpan.className = 'pill-count';
-        countSpan.textContent = count;
-
-        pill.append(emojiSpan, countSpan);
-        pill.dataset.emoji = emoji;
-        pill.addEventListener('click', (event) => {
-            event.stopPropagation();
-            reactionHandlers.get(messageId)?.(emoji);
-        });
+        pill.innerHTML = `<span class="pill-emoji">${emoji}</span><span class="pill-count">${count}</span>`;
         bar.appendChild(pill);
     }
 }
 
-// ── INFO DEL MENSAJE ──────────────────────────────────────────────────────
-function showMessageInfo(message) {
-    const overlay = document.createElement('div');
-    overlay.className = 'msg-overlay';
-
-    const card = document.createElement('div');
-    card.className = 'msg-info-card';
-
-    const kindMap = { global: 'Foro Global', private: 'Privado', group: 'Grupo' };
-    const time = message.timestamp
-        ? new Date(message.timestamp).toLocaleString('es', {
-            weekday: 'long', year: 'numeric', month: 'long',
-            day: 'numeric', hour: '2-digit', minute: '2-digit'
-          })
-        : 'Hora desconocida';
-
-    const header = document.createElement('header');
-    header.className = 'msg-info-header';
-    const title = document.createElement('h3');
-    title.textContent = 'Info. del mensaje';
-    header.append(title, _closeBtn(() => overlay.remove()));
-
-    const body = document.createElement('div');
-    body.className = 'msg-info-body';
-
-    const bubble = document.createElement('div');
-    bubble.className = 'msg-info-bubble';
-    bubble.textContent = message.text || '';
-    body.appendChild(bubble);
-
-    for (const [label, value] of [
-        ['Enviado', time],
-        ['De', message.from || message.nickname || 'Tú'],
-        ['Canal', kindMap[message.kind || 'global'] || 'Global'],
-    ]) {
-        const row = document.createElement('div');
-        row.className = 'msg-info-row';
-        const l = document.createElement('span'); l.className = 'msg-info-label'; l.textContent = label;
-        const v = document.createElement('span'); v.className = 'msg-info-value'; v.textContent = value;
-        row.append(l, v);
-        body.appendChild(row);
-    }
-
-    card.append(header, body);
-    overlay.appendChild(card);
-    document.body.appendChild(overlay);
-    overlay.addEventListener('click', (e) => { if (e.target === overlay) overlay.remove(); });
+export function showMiniToast(text) {
+    const toast = document.createElement('div');
+    toast.className = 'msg-mini-toast';
+    toast.textContent = text;
+    document.body.appendChild(toast);
+    requestAnimationFrame(() => requestAnimationFrame(() => toast.classList.add('show')));
+    setTimeout(() => { toast.classList.remove('show'); setTimeout(() => toast.remove(), 300); }, 2200);
 }
 
-// ── COPIAR ────────────────────────────────────────────────────────────────
 async function copyMessage(text) {
     try { await navigator.clipboard.writeText(text); }
     catch {
@@ -149,16 +107,114 @@ async function copyMessage(text) {
     showMiniToast('Mensaje copiado');
 }
 
-export function showMiniToast(text) {
-    const toast = document.createElement('div');
-    toast.className = 'msg-mini-toast';
-    toast.textContent = text;
-    document.body.appendChild(toast);
-    requestAnimationFrame(() => requestAnimationFrame(() => toast.classList.add('show')));
-    setTimeout(() => { toast.classList.remove('show'); setTimeout(() => toast.remove(), 300); }, 2200);
+function closeFloatingMessageMenu() {
+    if (currentOverlay) {
+        currentOverlay.remove();
+        currentOverlay = null;
+    }
 }
 
-// ── REENVIAR ──────────────────────────────────────────────────────────────
+function isMobile() {
+    return window.matchMedia('(max-width: 680px)').matches;
+}
+
+function getEventPoint(event, fallbackElement) {
+    const rect = fallbackElement.getBoundingClientRect();
+    return {
+        x: event?.clientX || rect.right,
+        y: event?.clientY || rect.top
+    };
+}
+
+function openFloatingMessageMenu(config, point) {
+    closeFloatingMessageMenu();
+
+    const { message, messageElement, messageKind, isOwn, state, sendJsonFn, onReply, onStartEdit, onDeleteClick } = config;
+
+    const overlay = document.createElement('div');
+    overlay.className = 'wa-menu-overlay';
+
+    const reactionBar = document.createElement('div');
+    reactionBar.className = 'wa-reaction-bar';
+
+    for (const emoji of QUICK_REACTIONS) {
+        const btn = document.createElement('button');
+        btn.type = 'button';
+        btn.textContent = emoji;
+        btn.setAttribute('aria-label', `Reaccionar con ${emoji}`);
+        btn.addEventListener('click', (event) => {
+            event.stopPropagation();
+            const action = toggleReactionLocal(message.id, emoji, state.selfId);
+            refreshReactionBar(message.id, messageElement, state.selfId);
+            if (message.id && sendJsonFn) {
+                const targetId = messageKind === 'private'
+                    ? (isOwn ? message.toId : message.fromId)
+                    : null;
+                sendJsonFn({
+                    type: 'react_message',
+                    payload: {
+                        messageId: message.id,
+                        emoji,
+                        action,
+                        kind: messageKind,
+                        groupId: message.groupId || null,
+                        targetId
+                    },
+                    timestamp: new Date().toISOString()
+                });
+            }
+            closeFloatingMessageMenu();
+        });
+        reactionBar.appendChild(btn);
+    }
+
+    const menu = document.createElement('div');
+    menu.className = 'wa-message-menu';
+
+    const addItem = (icon, label, className, onClick, disabled = false) => {
+        const btn = document.createElement('button');
+        btn.type = 'button';
+        btn.className = `wa-menu-item${className ? ' ' + className : ''}`;
+        btn.disabled = disabled;
+        btn.innerHTML = `<span class="wa-menu-icon">${icon}</span><span>${label}</span>`;
+        btn.addEventListener('click', (event) => {
+            event.stopPropagation();
+            closeFloatingMessageMenu();
+            onClick();
+        });
+        menu.appendChild(btn);
+    };
+
+    addItem('↩', 'Responder', '', () => onReply(message));
+    addItem('⧉', 'Copiar', '', () => copyMessage(message.text || ''));
+    addItem('☺', 'Reaccionar', '', () => {}, true);
+    addItem('↪', 'Reenviar', '', () => showForwardPicker(message, state, sendJsonFn));
+    if (isOwn && !message.deletedForAll) addItem('✎', 'Editar', '', () => onStartEdit(message, messageElement));
+    addItem('🗑', 'Eliminar', 'danger', () => onDeleteClick());
+
+    overlay.append(reactionBar, menu);
+    document.body.appendChild(overlay);
+    currentOverlay = overlay;
+
+    overlay.addEventListener('click', (event) => {
+        if (event.target === overlay) closeFloatingMessageMenu();
+    });
+
+    requestAnimationFrame(() => {
+        if (isMobile()) {
+            menu.classList.add('is-bottom-sheet');
+            reactionBar.classList.add('is-mobile');
+            return;
+        }
+        const x = Math.min(point.x, window.innerWidth - 230);
+        const y = Math.min(point.y + 8, window.innerHeight - 360);
+        menu.style.left = `${Math.max(8, x)}px`;
+        menu.style.top = `${Math.max(8, y)}px`;
+        reactionBar.style.left = `${Math.max(8, x - 32)}px`;
+        reactionBar.style.top = `${Math.max(8, y - 58)}px`;
+    });
+}
+
 export function showForwardPicker(message, state, sendJsonFn) {
     const overlay = document.createElement('div');
     overlay.className = 'msg-overlay';
@@ -175,8 +231,8 @@ export function showForwardPicker(message, state, sendJsonFn) {
     const list = document.createElement('ul');
     list.className = 'msg-forward-list';
 
-    const users  = (state.users  || []).filter(u => u.id !== state.selfId);
-    const groups = state.groups  || [];
+    const users = (state.users || []).filter(u => u.id !== state.selfId);
+    const groups = state.groups || [];
 
     if (users.length === 0 && groups.length === 0) {
         const empty = document.createElement('li');
@@ -186,16 +242,26 @@ export function showForwardPicker(message, state, sendJsonFn) {
     }
 
     for (const user of users) {
-        list.appendChild(_forwardItem(
-            (user.nickname || '?')[0].toUpperCase(), user.nickname, false,
-            () => { sendJsonFn({ type: 'private', payload: { targetId: user.id, text: message.text }, timestamp: new Date().toISOString() }); overlay.remove(); showMiniToast('Mensaje reenviado'); }
-        ));
+        list.appendChild(_forwardItem((user.nickname || '?')[0].toUpperCase(), user.nickname, false, () => {
+            sendJsonFn({
+                type: 'private',
+                payload: { targetId: user.id, text: message.text, isForwarded: true, forwardedFromId: message.id || null },
+                timestamp: new Date().toISOString()
+            });
+            overlay.remove();
+            showMiniToast('Mensaje reenviado');
+        }));
     }
     for (const group of groups) {
-        list.appendChild(_forwardItem(
-            '#', group.name, true,
-            () => { sendJsonFn({ type: 'group_message', payload: { groupId: group.id, text: message.text }, timestamp: new Date().toISOString() }); overlay.remove(); showMiniToast('Mensaje reenviado'); }
-        ));
+        list.appendChild(_forwardItem('#', group.name, true, () => {
+            sendJsonFn({
+                type: 'group_message',
+                payload: { groupId: group.id, text: message.text, isForwarded: true, forwardedFromId: message.id || null },
+                timestamp: new Date().toISOString()
+            });
+            overlay.remove();
+            showMiniToast('Mensaje reenviado');
+        }));
     }
 
     card.append(header, list);
@@ -218,13 +284,12 @@ function _forwardItem(avatarText, name, isGroup, onClick) {
     return li;
 }
 
-// ── EDITAR (inline) ───────────────────────────────────────────────────────
 export function startInlineEdit(message, messageElement, sendJsonFn, messageKind) {
+    if (message.deletedForAll) return;
     const contentEl = messageElement.querySelector('.message-content');
     if (!contentEl || messageElement.querySelector('.msg-edit-form')) return;
 
     const originalText = message.text || '';
-
     const form = document.createElement('form');
     form.className = 'msg-edit-form';
 
@@ -258,7 +323,6 @@ export function startInlineEdit(message, messageElement, sendJsonFn, messageKind
     textarea.setSelectionRange(textarea.value.length, textarea.value.length);
 
     const cancel = () => form.replaceWith(contentEl);
-
     const save = () => {
         const newText = textarea.value.trim();
         if (!newText) return;
@@ -289,184 +353,45 @@ export function addEditedTag(messageElement) {
     }
 }
 
-// ── CONSTRUCTOR DEL MENÚ ──────────────────────────────────────────────────
-function getPrivateTargetId(message, state) {
-    if (!message || !state) return null;
-    if (message.fromId && message.fromId !== state.selfId) return message.fromId;
-    if (message.toId && message.toId !== state.selfId) return message.toId;
-
-    const activeName = state.activeChat?.type === 'private' ? state.activeChat.name : null;
-    const activeUser = activeName ? (state.users || []).find((u) => u.nickname === activeName) : null;
-    return activeUser?.id || null;
-}
-
-function syncReaction({ message, messageElement, messageKind, state, sendJsonFn, emoji }) {
-    if (!message?.id || !state?.selfId) return;
-
-    const action = toggleReactionLocal(message.id, emoji, state.selfId);
-    refreshReactionBar(message.id, messageElement, state.selfId);
-
-    if (!sendJsonFn) return;
-
-    sendJsonFn({
-        type: 'react_message',
-        payload: {
-            messageId: message.id,
-            emoji,
-            action,
-            kind: messageKind,
-            groupId: message.groupId || null,
-            targetId: messageKind === 'private' ? getPrivateTargetId(message, state) : null
-        },
-        timestamp: new Date().toISOString()
-    });
-}
-
-function closeOpenMessageMenus() {
-    document.querySelectorAll('.msg-actions-layer').forEach((layer) => layer.remove());
-}
-
-function clamp(value, min, max) {
-    return Math.max(min, Math.min(value, max));
-}
-
-function positionActionsLayer({ messageElement, layer, reactionBar, popover, isOwn }) {
-    const rect = messageElement.getBoundingClientRect();
-    const viewportPadding = 12;
-    const gap = 8;
-
-    const popoverRect = popover.getBoundingClientRect();
-    const reactionRect = reactionBar.getBoundingClientRect();
-
-    let popoverLeft = isOwn ? rect.right - popoverRect.width : rect.left;
-    popoverLeft = clamp(popoverLeft, viewportPadding, window.innerWidth - popoverRect.width - viewportPadding);
-
-    let popoverTop = rect.top + 30;
-    if (popoverTop + popoverRect.height > window.innerHeight - viewportPadding) {
-        popoverTop = rect.bottom - popoverRect.height;
-    }
-    popoverTop = clamp(popoverTop, viewportPadding, window.innerHeight - popoverRect.height - viewportPadding);
-
-    let reactionLeft = isOwn ? rect.right - reactionRect.width : rect.left;
-    reactionLeft = clamp(reactionLeft, viewportPadding, window.innerWidth - reactionRect.width - viewportPadding);
-
-    let reactionTop = popoverTop - reactionRect.height - gap;
-    if (reactionTop < viewportPadding) {
-        reactionTop = popoverTop + popoverRect.height + gap;
-    }
-    reactionTop = clamp(reactionTop, viewportPadding, window.innerHeight - reactionRect.height - viewportPadding);
-
-    popover.style.left = `${popoverLeft}px`;
-    popover.style.top = `${popoverTop}px`;
-    reactionBar.style.left = `${reactionLeft}px`;
-    reactionBar.style.top = `${reactionTop}px`;
-    layer.classList.add('is-positioned');
-}
-
-function openMessageActions({ message, messageElement, messageKind, isOwn, state, sendJsonFn, onReply, onStartEdit, onDeleteClick }) {
-    closeOpenMessageMenus();
-
-    const layer = document.createElement('div');
-    layer.className = 'msg-actions-layer';
-
-    const reactionBar = document.createElement('div');
-    reactionBar.className = 'msg-floating-reactions';
-
-    const react = (emoji) => {
-        syncReaction({ message, messageElement, messageKind, state, sendJsonFn, emoji });
-        closeOpenMessageMenus();
-    };
-
-    if (message.id) {
-        reactionHandlers.set(message.id, react);
-    }
-
-    const stored = message.id ? getMessageReactions(message.id) : {};
-    for (const emoji of QUICK_REACTIONS) {
-        const entry = stored[emoji] || { users: [] };
-        const isMine = state.selfId && entry.users?.includes(state.selfId);
-        const btn = document.createElement('button');
-        btn.type = 'button';
-        btn.className = `msg-floating-reaction${isMine ? ' active' : ''}`;
-        btn.textContent = emoji;
-        btn.title = emoji;
-        btn.addEventListener('click', (event) => {
-            event.stopPropagation();
-            react(emoji);
-        });
-        reactionBar.appendChild(btn);
-    }
-
-    const popover = document.createElement('div');
-    popover.className = `msg-actions-popover${isOwn ? ' is-own' : ''}`;
-
-    const addItem = (icon, label, cls, onClick) => {
-        const btn = document.createElement('button');
-        btn.type = 'button';
-        btn.className = `msg-action-item${cls ? ' ' + cls : ''}`;
-        const iconEl  = document.createElement('span'); iconEl.className  = 'msg-action-icon';  iconEl.textContent  = icon;
-        const labelEl = document.createElement('span'); labelEl.className = 'msg-action-label'; labelEl.textContent = label;
-        btn.append(iconEl, labelEl);
-        btn.addEventListener('click', (event) => {
-            event.stopPropagation();
-            closeOpenMessageMenus();
-            onClick?.();
-        });
-        popover.appendChild(btn);
-    };
-
-    addItem('↩',  'Responder', '', () => onReply(message));
-    addItem('⧉',  'Copiar', '', () => copyMessage(message.text || ''));
-    addItem('↗',  'Reenviar', '', () => showForwardPicker(message, state, sendJsonFn));
-    if (isOwn) addItem('✎', 'Editar', '', () => onStartEdit(message, messageElement));
-    addItem('🗑',  'Eliminar', 'delete-action', () => onDeleteClick());
-
-    layer.append(reactionBar, popover);
-    document.body.appendChild(layer);
-
-    layer.addEventListener('click', (event) => {
-        if (event.target === layer) closeOpenMessageMenus();
-    });
-
-    const onKeydown = (event) => {
-        if (event.key === 'Escape') {
-            closeOpenMessageMenus();
-            document.removeEventListener('keydown', onKeydown);
-        }
-    };
-    document.addEventListener('keydown', onKeydown);
-
-    requestAnimationFrame(() => positionActionsLayer({ messageElement, layer, reactionBar, popover, isOwn }));
-}
-
-export function buildMessageMenu({ message, messageElement, messageKind, isOwn, state, sendJsonFn, onReply, onStartEdit, onDeleteClick }) {
+export function buildMessageMenu(config) {
+    const { message, messageElement, isOwn } = config;
     const container = document.createElement('div');
     container.className = `message-menu-container${isOwn ? ' menu-own' : ''}`;
 
     const triggerBtn = document.createElement('button');
     triggerBtn.type = 'button';
     triggerBtn.className = 'message-menu-trigger';
-    triggerBtn.innerHTML = '&#709;';
+    triggerBtn.innerHTML = '&#9660;';
     triggerBtn.title = 'Opciones';
     triggerBtn.setAttribute('aria-label', 'Opciones del mensaje');
 
-    if (message.id) {
-        reactionHandlers.set(message.id, (emoji) => {
-            syncReaction({ message, messageElement, messageKind, state, sendJsonFn, emoji });
-        });
-        refreshReactionBar(message.id, messageElement, state.selfId);
-    }
-
     triggerBtn.addEventListener('click', (event) => {
+        event.preventDefault();
         event.stopPropagation();
-        openMessageActions({ message, messageElement, messageKind, isOwn, state, sendJsonFn, onReply, onStartEdit, onDeleteClick });
+        openFloatingMessageMenu(config, getEventPoint(event, messageElement));
     });
 
-    container.appendChild(triggerBtn);
+    messageElement.addEventListener('contextmenu', (event) => {
+        event.preventDefault();
+        openFloatingMessageMenu(config, getEventPoint(event, messageElement));
+    });
+
+    messageElement.addEventListener('pointerdown', (event) => {
+        if (!isMobile()) return;
+        clearTimeout(longPressTimer);
+        longPressTimer = setTimeout(() => {
+            openFloatingMessageMenu(config, getEventPoint(event, messageElement));
+        }, 560);
+    });
+    ['pointerup', 'pointercancel', 'pointermove', 'mouseleave'].forEach((name) => {
+        messageElement.addEventListener(name, () => clearTimeout(longPressTimer));
+    });
+
+    container.append(triggerBtn);
+    refreshReactionBar(message.id, messageElement, config.state.selfId);
     return container;
 }
 
-// ── UTILIDADES PRIVADAS ───────────────────────────────────────────────────
 function _closeBtn(onClick) {
     const btn = document.createElement('button');
     btn.type = 'button';

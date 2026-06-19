@@ -1,13 +1,13 @@
 /**
  * Sistema de respuesta/cita de mensajes.
- * Gestiona la barra de preview en el compositor y el bloque de cita dentro del mensaje.
+ * La barra de respuesta se dibuja FUERA del <form> para no romper el grid del input.
  */
 
 export function setReplyingTo(message, state, elements) {
     state.replyingTo = {
-        id:       message.id       || null,
-        text:     message.text     || '',
-        nickname: message.from     || message.nickname || 'Usuario'
+        id: message.id || null,
+        text: message.text || '',
+        nickname: message.from || message.nickname || 'Usuario'
     };
     _renderReplyBar(state.replyingTo, state, elements);
     elements.messageInput?.focus();
@@ -15,12 +15,14 @@ export function setReplyingTo(message, state, elements) {
 
 export function clearReplyingTo(state, elements) {
     state.replyingTo = null;
-    elements.messageForm?.querySelector('.reply-preview-bar')?.remove();
+    const slot = document.getElementById('replyComposerSlot') || elements.messageForm?.parentElement;
+    slot?.querySelector('.reply-preview-bar')?.remove();
 }
 
 function _renderReplyBar(replyTo, state, elements) {
-    elements.messageForm?.querySelector('.reply-preview-bar')?.remove();
-    if (!elements.messageForm) return;
+    const slot = document.getElementById('replyComposerSlot') || elements.messageForm?.parentElement;
+    slot?.querySelector('.reply-preview-bar')?.remove();
+    if (!slot) return;
 
     const bar = document.createElement('div');
     bar.className = 'reply-preview-bar';
@@ -33,11 +35,11 @@ function _renderReplyBar(replyTo, state, elements) {
 
     const name = document.createElement('span');
     name.className = 'reply-preview-name';
-    name.textContent = replyTo.nickname;
+    name.textContent = replyTo.nickname || 'Usuario';
 
     const text = document.createElement('span');
     text.className = 'reply-preview-text';
-    text.textContent = replyTo.text;
+    text.textContent = replyTo.text || '';
 
     content.append(name, text);
 
@@ -49,14 +51,9 @@ function _renderReplyBar(replyTo, state, elements) {
     closeBtn.addEventListener('click', () => clearReplyingTo(state, elements));
 
     bar.append(line, content, closeBtn);
-    elements.messageForm.prepend(bar);
+    slot.appendChild(bar);
 }
 
-/**
- * Crea el bloque de cita que se muestra dentro del mensaje que contiene una respuesta.
- * @param {{nickname:string, text:string}} replyTo
- * @returns {HTMLElement|null}
- */
 export function renderReplyQuote(replyTo) {
     if (!replyTo?.text) return null;
 
@@ -65,14 +62,13 @@ export function renderReplyQuote(replyTo) {
 
     const name = document.createElement('span');
     name.className = 'msg-reply-quote-name';
-    name.textContent = replyTo.nickname || 'Usuario';
+    name.textContent = replyTo.nickname || replyTo.author || 'Usuario';
 
     const text = document.createElement('p');
     text.className = 'msg-reply-quote-text';
     const MAX = 120;
-    text.textContent = replyTo.text.length > MAX
-        ? replyTo.text.slice(0, MAX) + '…'
-        : replyTo.text;
+    const value = String(replyTo.text || '');
+    text.textContent = value.length > MAX ? value.slice(0, MAX) + '…' : value;
 
     quote.append(name, text);
     return quote;

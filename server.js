@@ -93,6 +93,110 @@ function sanitizeText(value, maxLength) {
         .slice(0, maxLength);
 }
 
+
+const DEFAULT_FORBIDDEN_TERMS = [
+    'idiota', 'tonto', 'estupido', 'imbecil', 'stupid', 'idiot', 'fool'
+];
+
+function normalizeForModeration(text) {
+    return String(text || '')
+        .toLowerCase()
+        .normalize('NFD')
+        .replace(/[\u0300-\u036f]/g, '')
+        .replace(/0/g, 'o')
+        .replace(/1/g, 'i')
+        .replace(/3/g, 'e')
+        .replace(/4/g, 'a')
+        .replace(/5/g, 's')
+        .replace(/7/g, 't')
+        .replace(/@/g, 'a')
+        .replace(/\$/g, 's')
+        .replace(/[._\-*~|\s]+/g, '');
+}
+
+function escapeRegExp(value) {
+    return String(value).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+
+function censorWithRegex(originalText) {
+    let censored = String(originalText || '');
+    const normalized = normalizeForModeration(originalText);
+    for (const term of DEFAULT_FORBIDDEN_TERMS) {
+        const normalizedTerm = normalizeForModeration(term);
+        if (!normalizedTerm || !normalized.includes(normalizedTerm)) continue;
+        const loosePattern = term
+            .split('')
+            .map((char) => escapeRegExp(char))
+            .join('[\\s._\\-*~|]*');
+        censored = censored.replace(new RegExp(`\\b${loosePattern}\\b`, 'gi'), '*'.repeat(term.length));
+    }
+    return censored;
+}
+
+function censorWithBadWords(originalText) {
+    try {
+        // Opción A opcional: instalar con `npm install bad-words`.
+        const Filter = require('bad-words');
+        const filter = new Filter();
+        filter.addWords(...DEFAULT_FORBIDDEN_TERMS);
+        return filter.clean(String(originalText || ''));
+    } catch {
+        return censorWithRegex(originalText);
+    }
+}
+
+function censorMessageText(originalText) {
+    // Cambia a censorWithBadWords(originalText) si desean activar la librería bad-words.
+    return censorWithRegex(originalText);
+}
+
+function clientWantsCensorship(ws) {
+    return ws.preferences?.censorshipEnabled !== false;
+}
+
+function buildReplySnapshot(payload = {}) {
+    const reply = payload.replyTo || null;
+    if (!reply && !payload.replyToId) return { replyToId: null, replyAuthor: null, replyText: null, replyTo: null };
+    const replyToId = sanitizeText(payload.replyToId || reply?.id || '', 80) || null;
+    const replyAuthor = sanitizeText(reply?.nickname || reply?.author || reply?.from || '', 80) || null;
+    const replyText = sanitizeText(reply?.text || '', MAX_MESSAGE_LENGTH) || null;
+    return {
+        replyToId,
+        replyAuthor,
+        replyText,
+        replyTo: replyToId || replyText ? { id: replyToId, nickname: replyAuthor || 'Usuario', text: replyText || '' } : null
+    };
+}
+
+function buildPayloadForClient(payload, ws) {
+    const wantsCensored = clientWantsCensorship(ws);
+    const text = wantsCensored
+        ? (payload.textCensored ?? payload.text ?? '')
+        : (payload.textOriginal ?? payload.text ?? '');
+    const { textOriginal, textCensored, ...safePayload } = payload;
+    return { ...safePayload, text };
+}
+
+function sendMessageToClient(ws, type, payload, timestamp) {
+    sendJson(ws, { type, payload: buildPayloadForClient(payload, ws), timestamp });
+}
+
+function broadcastMessageLocal(type, payload, timestamp, excludeConnectionId = null) {
+    wss.clients.forEach((client) => {
+        if (client.readyState === WebSocket.OPEN && client.connectionId !== excludeConnectionId) {
+            sendMessageToClient(client, type, payload, timestamp);
+        }
+    });
+}
+
+function sendMessageToLocalUser(userId, type, payload, timestamp, excludeConnectionId = null) {
+    getSocketsForUser(userId).forEach((client) => {
+        if (client.connectionId !== excludeConnectionId) {
+            sendMessageToClient(client, type, payload, timestamp);
+        }
+    });
+}
+
 function normalizeNickname(nickname) {
     return String(nickname || '').trim().toLowerCase();
 }
@@ -243,6 +347,61 @@ async function initDatabase() {
         );
     `);
 
+
+    await pool.query(`ALTER TABLE global_messages ADD COLUMN IF NOT EXISTS text_original TEXT;`);
+    await pool.query(`ALTER TABLE global_messages ADD COLUMN IF NOT EXISTS text_censored TEXT;`);
+    await pool.query(`ALTER TABLE global_messages ADD COLUMN IF NOT EXISTS reply_to_id UUID NULL;`);
+    await pool.query(`ALTER TABLE global_messages ADD COLUMN IF NOT EXISTS reply_author TEXT NULL;`);
+    await pool.query(`ALTER TABLE global_messages ADD COLUMN IF NOT EXISTS reply_text TEXT NULL;`);
+    await pool.query(`ALTER TABLE global_messages ADD COLUMN IF NOT EXISTS is_forwarded BOOLEAN NOT NULL DEFAULT FALSE;`);
+    await pool.query(`ALTER TABLE global_messages ADD COLUMN IF NOT EXISTS forwarded_from_id UUID NULL;`);
+    await pool.query(`ALTER TABLE global_messages ADD COLUMN IF NOT EXISTS deleted_for_all BOOLEAN NOT NULL DEFAULT FALSE;`);
+    await pool.query(`ALTER TABLE global_messages ADD COLUMN IF NOT EXISTS deleted_by UUID NULL;`);
+    await pool.query(`ALTER TABLE global_messages ADD COLUMN IF NOT EXISTS deleted_at TIMESTAMPTZ NULL;`);
+
+    await pool.query(`ALTER TABLE private_messages ADD COLUMN IF NOT EXISTS text_original TEXT;`);
+    await pool.query(`ALTER TABLE private_messages ADD COLUMN IF NOT EXISTS text_censored TEXT;`);
+    await pool.query(`ALTER TABLE private_messages ADD COLUMN IF NOT EXISTS reply_to_id UUID NULL;`);
+    await pool.query(`ALTER TABLE private_messages ADD COLUMN IF NOT EXISTS reply_author TEXT NULL;`);
+    await pool.query(`ALTER TABLE private_messages ADD COLUMN IF NOT EXISTS reply_text TEXT NULL;`);
+    await pool.query(`ALTER TABLE private_messages ADD COLUMN IF NOT EXISTS is_forwarded BOOLEAN NOT NULL DEFAULT FALSE;`);
+    await pool.query(`ALTER TABLE private_messages ADD COLUMN IF NOT EXISTS forwarded_from_id UUID NULL;`);
+    await pool.query(`ALTER TABLE private_messages ADD COLUMN IF NOT EXISTS deleted_for_all BOOLEAN NOT NULL DEFAULT FALSE;`);
+    await pool.query(`ALTER TABLE private_messages ADD COLUMN IF NOT EXISTS deleted_by UUID NULL;`);
+    await pool.query(`ALTER TABLE private_messages ADD COLUMN IF NOT EXISTS deleted_at TIMESTAMPTZ NULL;`);
+
+    await pool.query(`ALTER TABLE group_messages ADD COLUMN IF NOT EXISTS text_original TEXT;`);
+    await pool.query(`ALTER TABLE group_messages ADD COLUMN IF NOT EXISTS text_censored TEXT;`);
+    await pool.query(`ALTER TABLE group_messages ADD COLUMN IF NOT EXISTS reply_to_id UUID NULL;`);
+    await pool.query(`ALTER TABLE group_messages ADD COLUMN IF NOT EXISTS reply_author TEXT NULL;`);
+    await pool.query(`ALTER TABLE group_messages ADD COLUMN IF NOT EXISTS reply_text TEXT NULL;`);
+    await pool.query(`ALTER TABLE group_messages ADD COLUMN IF NOT EXISTS is_forwarded BOOLEAN NOT NULL DEFAULT FALSE;`);
+    await pool.query(`ALTER TABLE group_messages ADD COLUMN IF NOT EXISTS forwarded_from_id UUID NULL;`);
+    await pool.query(`ALTER TABLE group_messages ADD COLUMN IF NOT EXISTS deleted_for_all BOOLEAN NOT NULL DEFAULT FALSE;`);
+    await pool.query(`ALTER TABLE group_messages ADD COLUMN IF NOT EXISTS deleted_by UUID NULL;`);
+    await pool.query(`ALTER TABLE group_messages ADD COLUMN IF NOT EXISTS deleted_at TIMESTAMPTZ NULL;`);
+
+    await pool.query(`ALTER TABLE groups ADD COLUMN IF NOT EXISTS deleted_at TIMESTAMPTZ NULL;`);
+    await pool.query(`ALTER TABLE group_members ADD COLUMN IF NOT EXISTS role TEXT NOT NULL DEFAULT 'member';`);
+    await pool.query(`ALTER TABLE group_members ADD COLUMN IF NOT EXISTS hidden_for_user BOOLEAN NOT NULL DEFAULT FALSE;`);
+
+    await pool.query(`
+        CREATE TABLE IF NOT EXISTS message_reactions (
+            message_id UUID NOT NULL,
+            user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+            emoji TEXT NOT NULL,
+            created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+            PRIMARY KEY (message_id, user_id)
+        );
+    `);
+
+    await pool.query(`UPDATE global_messages SET text_original = text WHERE text_original IS NULL;`);
+    await pool.query(`UPDATE global_messages SET text_censored = text WHERE text_censored IS NULL;`);
+    await pool.query(`UPDATE private_messages SET text_original = text WHERE text_original IS NULL;`);
+    await pool.query(`UPDATE private_messages SET text_censored = text WHERE text_censored IS NULL;`);
+    await pool.query(`UPDATE group_messages SET text_original = text WHERE text_original IS NULL;`);
+    await pool.query(`UPDATE group_messages SET text_censored = text WHERE text_censored IS NULL;`);
+
     await pool.query('CREATE INDEX IF NOT EXISTS idx_global_messages_created_at ON global_messages(created_at DESC);');
     await pool.query('CREATE INDEX IF NOT EXISTS idx_private_messages_users ON private_messages(from_id, to_id, created_at DESC);');
     await pool.query('CREATE INDEX IF NOT EXISTS idx_group_messages_group_created ON group_messages(group_id, created_at DESC);');
@@ -342,8 +501,48 @@ async function publishCluster(event) {
     await redis.publish(REDIS_CHANNEL, JSON.stringify({ ...event, emittedAt: new Date().toISOString() }));
 }
 
+
+async function getReactionSnapshot(messageId) {
+    const result = await pool.query(
+        `SELECT emoji, ARRAY_AGG(user_id::text ORDER BY created_at ASC) AS users
+         FROM message_reactions
+         WHERE message_id = $1
+         GROUP BY emoji
+         ORDER BY emoji`,
+        [messageId]
+    );
+    return result.rows.map((row) => ({ emoji: row.emoji, users: row.users || [] }));
+}
+
+function rowToMessage(row, kind, censorshipEnabled = true) {
+    const original = row.text_original || row.text || '';
+    const censored = row.text_censored || row.text || original;
+    const deletedForAll = Boolean(row.deleted_for_all);
+    const text = deletedForAll
+        ? ''
+        : (censorshipEnabled ? censored : original);
+    return {
+        id: row.id,
+        fromId: row.from_id,
+        from: row.from_nickname,
+        text,
+        replyTo: row.reply_to_id || row.reply_text ? {
+            id: row.reply_to_id,
+            nickname: row.reply_author || 'Usuario',
+            text: row.reply_text || ''
+        } : null,
+        isForwarded: Boolean(row.is_forwarded),
+        forwardedFromId: row.forwarded_from_id,
+        deletedForAll,
+        deletedBy: row.deleted_by,
+        timestamp: row.created_at.toISOString(),
+        kind
+    };
+}
+
 async function sendInitialState(ws, publicUser) {
-    const globalHistory = await getGlobalHistory();
+    const censorshipEnabled = clientWantsCensorship(ws);
+    const globalHistory = await getGlobalHistory(censorshipEnabled);
     sendJson(ws, {
         type: 'history',
         payload: { messages: globalHistory },
@@ -352,41 +551,42 @@ async function sendInitialState(ws, publicUser) {
 
     sendJson(ws, {
         type: 'group_list',
-        payload: { groups: await getGroupsForUser(publicUser.id) },
+        payload: { groups: await getGroupsForUser(publicUser.id, censorshipEnabled) },
         timestamp: new Date().toISOString()
     });
 
     sendJson(ws, {
         type: 'private_conversations',
-        payload: { conversations: await getPrivateConversationsForUser(publicUser.id) },
+        payload: { conversations: await getPrivateConversationsForUser(publicUser.id, censorshipEnabled) },
         timestamp: new Date().toISOString()
     });
 }
 
-async function getGlobalHistory() {
+async function getGlobalHistory(censorshipEnabled = true) {
     const result = await pool.query(
-        `SELECT id, from_id, from_nickname, text, created_at
+        `SELECT *
          FROM global_messages
          ORDER BY created_at DESC
          LIMIT $1`,
         [MAX_HISTORY]
     );
 
-    return result.rows.reverse().map((row) => ({
-        id: row.id,
-        fromId: row.from_id,
-        from: row.from_nickname,
-        text: row.text,
-        timestamp: row.created_at.toISOString()
-    }));
+    const rows = result.rows.reverse();
+    const messages = [];
+    for (const row of rows) {
+        const message = rowToMessage(row, 'global', censorshipEnabled);
+        message.reactions = await getReactionSnapshot(row.id);
+        messages.push(message);
+    }
+    return messages;
 }
 
-async function getGroupsForUser(userId) {
+async function getGroupsForUser(userId, censorshipEnabled = true) {
     const groupsResult = await pool.query(
-        `SELECT g.id, g.name, g.created_by, g.created_at
+        `SELECT g.id, g.name, g.created_by, g.created_at, gm.role AS self_role
          FROM groups g
          INNER JOIN group_members gm ON gm.group_id = g.id
-         WHERE gm.user_id = $1
+         WHERE gm.user_id = $1 AND COALESCE(gm.hidden_for_user, FALSE) = FALSE AND g.deleted_at IS NULL
          ORDER BY g.created_at DESC`,
         [userId]
     );
@@ -394,7 +594,7 @@ async function getGroupsForUser(userId) {
     const groups = [];
     for (const group of groupsResult.rows) {
         const membersResult = await pool.query(
-            `SELECT u.id, u.code, u.first_name, u.last_name, u.nickname
+            `SELECT u.id, u.code, u.first_name, u.last_name, u.nickname, gm.role
              FROM group_members gm
              INNER JOIN users u ON u.id = gm.user_id
              WHERE gm.group_id = $1
@@ -403,7 +603,7 @@ async function getGroupsForUser(userId) {
         );
         const onlineIds = new Set(await getOnlineUserIds());
         const historyResult = await pool.query(
-            `SELECT id, group_id, group_name, from_id, from_nickname, text, created_at
+            `SELECT *
              FROM group_messages
              WHERE group_id = $1
              ORDER BY created_at DESC
@@ -416,22 +616,21 @@ async function getGroupsForUser(userId) {
             name: group.name,
             createdBy: group.created_by,
             createdAt: group.created_at.toISOString(),
-            members: membersResult.rows.map((row) => toPublicUser(row, onlineIds.has(row.id))),
-            history: historyResult.rows.reverse().map((message) => ({
-                id: message.id,
-                groupId: message.group_id,
-                groupName: message.group_name,
-                fromId: message.from_id,
-                from: message.from_nickname,
-                text: message.text,
-                timestamp: message.created_at.toISOString()
+            selfRole: group.self_role,
+            members: membersResult.rows.map((row) => ({ ...toPublicUser(row, onlineIds.has(row.id)), role: row.role })),
+            history: await Promise.all(historyResult.rows.reverse().map(async (message) => {
+                const item = rowToMessage(message, 'group', censorshipEnabled);
+                item.groupId = message.group_id;
+                item.groupName = message.group_name;
+                item.reactions = await getReactionSnapshot(message.id);
+                return item;
             }))
         });
     }
     return groups;
 }
 
-async function getPrivateConversationsForUser(userId) {
+async function getPrivateConversationsForUser(userId, censorshipEnabled = true) {
     const result = await pool.query(
         `SELECT * FROM private_messages
          WHERE from_id = $1 OR to_id = $1
@@ -453,17 +652,12 @@ async function getPrivateConversationsForUser(userId) {
         }
 
         const conversation = grouped.get(otherId);
-        conversation.messages.push({
-            id: message.id,
-            fromId: message.from_id,
-            from: message.from_nickname,
-            toId: message.to_id,
-            to: message.to_nickname,
-            text: message.text,
-            timestamp: message.created_at.toISOString(),
-            kind: 'private',
-            direction: message.from_id === userId ? 'out' : 'in'
-        });
+        const privateMessage = rowToMessage(message, 'private', censorshipEnabled);
+        privateMessage.toId = message.to_id;
+        privateMessage.to = message.to_nickname;
+        privateMessage.direction = message.from_id === userId ? 'out' : 'in';
+        privateMessage.reactions = await getReactionSnapshot(message.id);
+        conversation.messages.push(privateMessage);
         conversation.updatedAt = message.created_at.toISOString();
     }
 
@@ -487,7 +681,7 @@ async function broadcastGroupListsLocal() {
     for (const [client, user] of users.entries()) {
         sendJson(client, {
             type: 'group_list',
-            payload: { groups: await getGroupsForUser(user.id) },
+            payload: { groups: await getGroupsForUser(user.id, clientWantsCensorship(client)) },
             timestamp: new Date().toISOString()
         });
     }
@@ -650,81 +844,115 @@ async function handleLogout(ws, payload) {
 }
 
 async function handleMessage(ws, payload, timestamp) {
-    const user = users.get(ws);
-    const text = sanitizeText(payload.text, MAX_MESSAGE_LENGTH);
-    if (!user?.nickname || !text) return;
+    try {
+        const user = users.get(ws);
+        const textOriginal = sanitizeText(payload.text || payload.texto, MAX_MESSAGE_LENGTH);
+        if (!user?.nickname || !textOriginal) return;
 
-    const message = {
-        id: randomUUID(),
-        fromId: user.id,
-        from: user.nickname,
-        text,
-        replyTo: payload.replyTo || null,
-        timestamp: timestamp || new Date().toISOString()
-    };
+        const textCensored = censorMessageText(textOriginal);
+        const reply = buildReplySnapshot(payload);
+        const isForwarded = Boolean(payload.isForwarded);
+        const forwardedFromId = sanitizeText(payload.forwardedFromId || '', 80) || null;
 
-    await pool.query(
-        'INSERT INTO global_messages(id, from_id, from_nickname, text, created_at) VALUES($1,$2,$3,$4,$5)',
-        [message.id, message.fromId, message.from, message.text, message.timestamp]
-    );
+        const message = {
+            id: randomUUID(),
+            fromId: user.id,
+            from: user.nickname,
+            text: textCensored,
+            textOriginal,
+            textCensored,
+            replyTo: reply.replyTo,
+            isForwarded,
+            forwardedFromId,
+            deletedForAll: false,
+            deletedBy: null,
+            timestamp: timestamp || new Date().toISOString()
+        };
 
-    await pool.query(
-        `DELETE FROM global_messages
-         WHERE id NOT IN (SELECT id FROM global_messages ORDER BY created_at DESC LIMIT $1)`,
-        [MAX_HISTORY]
-    );
+        await pool.query(
+            `INSERT INTO global_messages
+             (id, from_id, from_nickname, text, text_original, text_censored, reply_to_id, reply_author, reply_text, is_forwarded, forwarded_from_id, created_at)
+             VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12)`,
+            [message.id, message.fromId, message.from, message.textCensored, textOriginal, textCensored, reply.replyToId, reply.replyAuthor, reply.replyText, isForwarded, forwardedFromId, message.timestamp]
+        );
 
-    await publishCluster({ event: 'broadcast', payload: message });
+        await pool.query(
+            `DELETE FROM global_messages
+             WHERE id NOT IN (SELECT id FROM global_messages ORDER BY created_at DESC LIMIT $1)`,
+            [MAX_HISTORY]
+        );
+
+        await publishCluster({ event: 'broadcast', payload: message });
+    } catch (error) {
+        console.error('Error al procesar mensaje global:', error);
+        sendJson(ws, { type: 'error', payload: { text: 'No se pudo enviar el mensaje.' }, timestamp: new Date().toISOString() });
+    }
 }
 
 async function handlePrivate(ws, payload, timestamp) {
-    const sender = users.get(ws);
-    const targetUser = await findUserById(payload.targetId);
-    const text = sanitizeText(payload.text, MAX_MESSAGE_LENGTH);
+    try {
+        const sender = users.get(ws);
+        const targetUser = await findUserById(payload.targetId);
+        const textOriginal = sanitizeText(payload.text, MAX_MESSAGE_LENGTH);
 
-    if (!sender?.nickname || !payload.targetId || payload.targetId === sender.id || !targetUser || !text) {
-        sendJson(ws, { type: 'private_error', payload: { text: 'Mensaje privado inválido.' }, timestamp: new Date().toISOString() });
-        return;
+        if (!sender?.nickname || !payload.targetId || payload.targetId === sender.id || !targetUser || !textOriginal) {
+            sendJson(ws, { type: 'private_error', payload: { text: 'Mensaje privado inválido.' }, timestamp: new Date().toISOString() });
+            return;
+        }
+
+        const textCensored = censorMessageText(textOriginal);
+        const reply = buildReplySnapshot(payload);
+        const isForwarded = Boolean(payload.isForwarded);
+        const forwardedFromId = sanitizeText(payload.forwardedFromId || '', 80) || null;
+
+        const message = {
+            id: randomUUID(),
+            fromId: sender.id,
+            from: sender.nickname,
+            toId: targetUser.id,
+            to: targetUser.nickname,
+            text: textCensored,
+            textOriginal,
+            textCensored,
+            replyTo: reply.replyTo,
+            isForwarded,
+            forwardedFromId,
+            deletedForAll: false,
+            deletedBy: null,
+            timestamp: timestamp || new Date().toISOString()
+        };
+
+        await pool.query(
+            `INSERT INTO private_messages
+             (id, from_id, from_nickname, to_id, to_nickname, text, text_original, text_censored, reply_to_id, reply_author, reply_text, is_forwarded, forwarded_from_id, created_at)
+             VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14)`,
+            [message.id, message.fromId, message.from, message.toId, message.to, message.textCensored, textOriginal, textCensored, reply.replyToId, reply.replyAuthor, reply.replyText, isForwarded, forwardedFromId, message.timestamp]
+        );
+
+        await pool.query(
+            `DELETE FROM private_messages pm
+             WHERE ((pm.from_id = $1 AND pm.to_id = $2) OR (pm.from_id = $2 AND pm.to_id = $1))
+             AND pm.id NOT IN (
+                SELECT id
+                FROM private_messages
+                WHERE ((from_id = $1 AND to_id = $2) OR (from_id = $2 AND to_id = $1))
+                ORDER BY created_at DESC
+                LIMIT $3
+             )`,
+            [message.fromId, message.toId, MAX_HISTORY]
+        );
+
+        await publishCluster({
+            event: 'private_msg',
+            payload: message,
+            originServerId: SERVER_ID,
+            originConnectionId: ws.connectionId
+        });
+    } catch (error) {
+        console.error('Error al procesar privado:', error);
+        sendJson(ws, { type: 'private_error', payload: { text: 'No se pudo enviar el mensaje privado.' }, timestamp: new Date().toISOString() });
     }
-
-    const message = {
-        id: randomUUID(),
-        fromId: sender.id,
-        from: sender.nickname,
-        toId: targetUser.id,
-        to: targetUser.nickname,
-        text,
-        replyTo: payload.replyTo || null,
-        timestamp: timestamp || new Date().toISOString()
-    };
-
-    await pool.query(
-        `INSERT INTO private_messages(id, from_id, from_nickname, to_id, to_nickname, text, created_at)
-         VALUES($1,$2,$3,$4,$5,$6,$7)`,
-        [message.id, message.fromId, message.from, message.toId, message.to, message.text, message.timestamp]
-    );
-
-    await pool.query(
-        `DELETE FROM private_messages pm
-         WHERE ((pm.from_id = $1 AND pm.to_id = $2) OR (pm.from_id = $2 AND pm.to_id = $1))
-         AND pm.id NOT IN (
-            SELECT id
-            FROM private_messages
-            WHERE ((from_id = $1 AND to_id = $2) OR (from_id = $2 AND to_id = $1))
-            ORDER BY created_at DESC
-            LIMIT $3
-         )`,
-        [message.fromId, message.toId, MAX_HISTORY]
-    );
-
-    await publishCluster({
-        event: 'private_msg',
-        payload: message,
-        originServerId: SERVER_ID,
-        originConnectionId: ws.connectionId
-    });
 }
-
 
 async function handleDeletePrivateMessage(ws, payload) {
     const requester = users.get(ws);
@@ -739,24 +967,25 @@ async function handleDeletePrivateMessage(ws, payload) {
     const message = result.rows[0];
 
     if (!message) {
-        sendJson(ws, { type: 'private_error', payload: { text: 'Mensaje no encontrado o ya fue eliminado.' }, timestamp: new Date().toISOString() });
+        sendJson(ws, { type: 'private_error', payload: { text: 'Mensaje no encontrado.' }, timestamp: new Date().toISOString() });
         return;
     }
 
     if (message.from_id !== requester.id) {
-        sendJson(ws, { type: 'private_error', payload: { text: 'Solo puedes eliminar mensajes privados enviados por ti.' }, timestamp: new Date().toISOString() });
+        sendJson(ws, { type: 'private_error', payload: { text: 'Solo puedes eliminar para todos mensajes enviados por ti.' }, timestamp: new Date().toISOString() });
         return;
     }
 
-    await pool.query('DELETE FROM private_messages WHERE id = $1', [id]);
+    await pool.query(
+        `UPDATE private_messages
+         SET deleted_for_all = TRUE, deleted_by = $2, deleted_at = NOW(), text = ''
+         WHERE id = $1`,
+        [id, requester.id]
+    );
 
     await publishCluster({
         event: 'private_delete',
-        payload: {
-            id,
-            fromId: message.from_id,
-            toId: message.to_id
-        },
+        payload: { id, deletedBy: requester.id, fromId: message.from_id, toId: message.to_id },
         originConnectionId: ws.connectionId
     });
 }
@@ -774,22 +1003,23 @@ async function handleDeleteGlobalMessage(ws, payload) {
     const message = result.rows[0];
 
     if (!message) {
-        sendJson(ws, { type: 'error', payload: { text: 'Mensaje no encontrado o ya fue eliminado.' }, timestamp: new Date().toISOString() });
+        sendJson(ws, { type: 'error', payload: { text: 'Mensaje no encontrado.' }, timestamp: new Date().toISOString() });
         return;
     }
 
     if (message.from_id !== requester.id) {
-        sendJson(ws, { type: 'error', payload: { text: 'Solo puedes eliminar mensajes enviados por ti.' }, timestamp: new Date().toISOString() });
+        sendJson(ws, { type: 'error', payload: { text: 'Solo puedes eliminar para todos mensajes enviados por ti.' }, timestamp: new Date().toISOString() });
         return;
     }
 
-    await pool.query('DELETE FROM global_messages WHERE id = $1', [id]);
+    await pool.query(
+        `UPDATE global_messages
+         SET deleted_for_all = TRUE, deleted_by = $2, deleted_at = NOW(), text = ''
+         WHERE id = $1`,
+        [id, requester.id]
+    );
 
-    await publishCluster({
-        event: 'global_delete',
-        payload: { id },
-        originConnectionId: ws.connectionId
-    });
+    await publishCluster({ event: 'global_delete', payload: { id, deletedBy: requester.id }, originConnectionId: ws.connectionId });
 }
 
 async function handleDeleteGroupMessage(ws, payload) {
@@ -806,21 +1036,26 @@ async function handleDeleteGroupMessage(ws, payload) {
     const message = result.rows[0];
 
     if (!message) {
-        sendJson(ws, { type: 'group_error', payload: { text: 'Mensaje no encontrado o ya fue eliminado.' }, timestamp: new Date().toISOString() });
+        sendJson(ws, { type: 'group_error', payload: { text: 'Mensaje no encontrado.' }, timestamp: new Date().toISOString() });
         return;
     }
 
     if (message.from_id !== requester.id) {
-        sendJson(ws, { type: 'group_error', payload: { text: 'Solo puedes eliminar mensajes enviados por ti.' }, timestamp: new Date().toISOString() });
+        sendJson(ws, { type: 'group_error', payload: { text: 'Solo puedes eliminar para todos mensajes enviados por ti.' }, timestamp: new Date().toISOString() });
         return;
     }
 
-    await pool.query('DELETE FROM group_messages WHERE id = $1', [id]);
+    await pool.query(
+        `UPDATE group_messages
+         SET deleted_for_all = TRUE, deleted_by = $2, deleted_at = NOW(), text = ''
+         WHERE id = $1`,
+        [id, requester.id]
+    );
 
     const membersResult = await pool.query('SELECT user_id FROM group_members WHERE group_id = $1', [groupId]);
     await publishCluster({
         event: 'group_delete',
-        payload: { id, groupId },
+        payload: { id, groupId, deletedBy: requester.id },
         memberIds: membersResult.rows.map((row) => row.user_id),
         originConnectionId: ws.connectionId
     });
@@ -844,8 +1079,9 @@ async function handleEditMessage(ws, payload) {
             sendJson(ws, { type: 'error', payload: { text: 'No puedes editar este mensaje.' }, timestamp: new Date().toISOString() });
             return;
         }
-        await pool.query('UPDATE global_messages SET text = $1 WHERE id = $2', [newText, id]);
-        await publishCluster({ event: 'message_edited', payload: { id, text: newText, kind: 'global' } });
+        const censored = censorMessageText(newText);
+        await pool.query('UPDATE global_messages SET text = $1, text_original = $2, text_censored = $3 WHERE id = $4 AND deleted_for_all = FALSE', [censored, newText, censored, id]);
+        await publishCluster({ event: 'message_edited', payload: { id, text: censored, kind: 'global' } });
 
     } else if (kind === 'private') {
         const { rows } = await pool.query('SELECT * FROM private_messages WHERE id = $1 LIMIT 1', [id]);
@@ -854,8 +1090,9 @@ async function handleEditMessage(ws, payload) {
             sendJson(ws, { type: 'private_error', payload: { text: 'No puedes editar este mensaje.' }, timestamp: new Date().toISOString() });
             return;
         }
-        await pool.query('UPDATE private_messages SET text = $1 WHERE id = $2', [newText, id]);
-        await publishCluster({ event: 'message_edited', payload: { id, text: newText, kind: 'private', fromId: msg.from_id, toId: msg.to_id } });
+        const censored = censorMessageText(newText);
+        await pool.query('UPDATE private_messages SET text = $1, text_original = $2, text_censored = $3 WHERE id = $4 AND deleted_for_all = FALSE', [censored, newText, censored, id]);
+        await publishCluster({ event: 'message_edited', payload: { id, text: censored, kind: 'private', fromId: msg.from_id, toId: msg.to_id } });
 
     } else if (kind === 'group') {
         const { rows } = await pool.query('SELECT * FROM group_messages WHERE id = $1 LIMIT 1', [id]);
@@ -864,9 +1101,10 @@ async function handleEditMessage(ws, payload) {
             sendJson(ws, { type: 'group_error', payload: { text: 'No puedes editar este mensaje.' }, timestamp: new Date().toISOString() });
             return;
         }
-        await pool.query('UPDATE group_messages SET text = $1 WHERE id = $2', [newText, id]);
+        const censored = censorMessageText(newText);
+        await pool.query('UPDATE group_messages SET text = $1, text_original = $2, text_censored = $3 WHERE id = $4 AND deleted_for_all = FALSE', [censored, newText, censored, id]);
         const members = await pool.query('SELECT user_id FROM group_members WHERE group_id = $1', [msg.group_id]);
-        await publishCluster({ event: 'message_edited', payload: { id, text: newText, kind: 'group' }, memberIds: members.rows.map((r) => r.user_id) });
+        await publishCluster({ event: 'message_edited', payload: { id, text: censored, kind: 'group' }, memberIds: members.rows.map((r) => r.user_id) });
     }
 }
 
@@ -875,15 +1113,29 @@ async function handleReactMessage(ws, payload) {
     if (!user?.id) return;
 
     const messageId = sanitizeText(String(payload.messageId || ''), 80);
-    const emoji     = String(payload.emoji || '').slice(0, 8);
-    const action    = payload.action === 'remove' ? 'remove' : 'add';
-    const kind      = payload.kind;
-    const groupId   = payload.groupId || null;
-    const targetId  = payload.targetId || null;
+    const emoji = String(payload.emoji || '').slice(0, 8);
+    const action = payload.action === 'remove' ? 'remove' : 'add';
+    const kind = payload.kind;
+    const groupId = payload.groupId || null;
+    const targetId = payload.targetId || null;
 
-    if (!messageId || !emoji || !kind) return;
+    const allowedEmojis = ['👍', '❤️', '😂', '😮', '😢', '🙏'];
+    if (!messageId || !allowedEmojis.includes(emoji) || !kind) return;
 
-    const reactPayload = { messageId, emoji, userId: user.id, action, kind };
+    if (action === 'remove') {
+        await pool.query('DELETE FROM message_reactions WHERE message_id = $1 AND user_id = $2', [messageId, user.id]);
+    } else {
+        await pool.query(
+            `INSERT INTO message_reactions(message_id, user_id, emoji, created_at)
+             VALUES($1,$2,$3,NOW())
+             ON CONFLICT(message_id, user_id)
+             DO UPDATE SET emoji = EXCLUDED.emoji, created_at = NOW()`,
+            [messageId, user.id, emoji]
+        );
+    }
+
+    const reactions = await getReactionSnapshot(messageId);
+    const reactPayload = { messageId, emoji, userId: user.id, action, kind, reactions };
 
     if (kind === 'global') {
         await publishCluster({ event: 'message_reaction', payload: reactPayload });
@@ -929,7 +1181,7 @@ async function handleCreateGroup(ws, payload) {
         await client.query('BEGIN');
         await client.query('INSERT INTO groups(id, name, created_by, created_at) VALUES($1,$2,$3,$4)', [group.id, group.name, group.createdBy, group.createdAt]);
         for (const memberId of memberIds) {
-            await client.query('INSERT INTO group_members(group_id, user_id) VALUES($1,$2) ON CONFLICT DO NOTHING', [group.id, memberId]);
+            await client.query('INSERT INTO group_members(group_id, user_id, role) VALUES($1,$2,$3) ON CONFLICT (group_id, user_id) DO UPDATE SET role = EXCLUDED.role, hidden_for_user = FALSE', [group.id, memberId, memberId === creator.id ? 'owner' : 'member']);
         }
         await client.query('COMMIT');
     } catch (error) {
@@ -954,9 +1206,15 @@ async function handleAddGroupMembers(ws, payload) {
         return;
     }
 
-    const isMember = await pool.query('SELECT 1 FROM group_members WHERE group_id = $1 AND user_id = $2', [group.id, requester.id]);
+    const isMember = await pool.query('SELECT role FROM group_members WHERE group_id = $1 AND user_id = $2', [group.id, requester.id]);
     if (isMember.rowCount === 0) {
         sendJson(ws, { type: 'group_error', payload: { text: 'No eres miembro de este grupo.' }, timestamp: new Date().toISOString() });
+        return;
+    }
+
+    const requesterRole = isMember.rows[0]?.role;
+    if (!['owner', 'admin'].includes(requesterRole)) {
+        sendJson(ws, { type: 'group_error', payload: { text: 'Solo administradores pueden agregar miembros.' }, timestamp: new Date().toISOString() });
         return;
     }
 
@@ -964,7 +1222,7 @@ async function handleAddGroupMembers(ws, payload) {
     let added = 0;
     for (const id of selectedIds) {
         if (activeIds.has(id)) {
-            const insert = await pool.query('INSERT INTO group_members(group_id, user_id) VALUES($1,$2) ON CONFLICT DO NOTHING', [group.id, id]);
+            const insert = await pool.query(`INSERT INTO group_members(group_id, user_id, role, hidden_for_user) VALUES($1,$2,'member',FALSE) ON CONFLICT (group_id, user_id) DO UPDATE SET hidden_for_user = FALSE`, [group.id, id]);
             added += insert.rowCount;
         }
     }
@@ -977,6 +1235,94 @@ async function handleAddGroupMembers(ws, payload) {
     await publishCluster({ event: 'group_lists_update' });
 }
 
+
+async function getGroupRole(groupId, userId) {
+    const result = await pool.query('SELECT role FROM group_members WHERE group_id = $1 AND user_id = $2', [groupId, userId]);
+    return result.rows[0]?.role || null;
+}
+
+async function handlePromoteGroupAdmin(ws, payload) {
+    const requester = users.get(ws);
+    const groupId = sanitizeText(payload.groupId, 80);
+    const targetUserId = sanitizeText(payload.targetUserId, 80);
+    if (!requester?.id || !groupId || !targetUserId) return;
+
+    const role = await getGroupRole(groupId, requester.id);
+    if (role !== 'owner') {
+        sendJson(ws, { type: 'group_error', payload: { text: 'Solo el owner puede nombrar administradores.' }, timestamp: new Date().toISOString() });
+        return;
+    }
+
+    await pool.query(
+        `UPDATE group_members SET role = 'admin', hidden_for_user = FALSE
+         WHERE group_id = $1 AND user_id = $2 AND role <> 'owner'`,
+        [groupId, targetUserId]
+    );
+    await publishCluster({ event: 'group_lists_update' });
+}
+
+async function handleLeaveGroup(ws, payload) {
+    const requester = users.get(ws);
+    const groupId = sanitizeText(payload.groupId, 80);
+    if (!requester?.id || !groupId) return;
+
+    const role = await getGroupRole(groupId, requester.id);
+    if (role === 'owner') {
+        const otherAdmins = await pool.query(
+            `SELECT 1 FROM group_members WHERE group_id = $1 AND user_id <> $2 AND role IN ('owner','admin') LIMIT 1`,
+            [groupId, requester.id]
+        );
+        if (otherAdmins.rowCount === 0) {
+            sendJson(ws, { type: 'group_error', payload: { text: 'Antes de salir, nombra a otro administrador.' }, timestamp: new Date().toISOString() });
+            return;
+        }
+    }
+
+    await pool.query('DELETE FROM group_members WHERE group_id = $1 AND user_id = $2', [groupId, requester.id]);
+    sendJson(ws, { type: 'group_deleted', payload: { groupId }, timestamp: new Date().toISOString() });
+    await publishCluster({ event: 'group_lists_update' });
+}
+
+async function handleHideGroupChat(ws, payload) {
+    const requester = users.get(ws);
+    const groupId = sanitizeText(payload.groupId, 80);
+    if (!requester?.id || !groupId) return;
+
+    await pool.query(
+        `UPDATE group_members SET hidden_for_user = TRUE WHERE group_id = $1 AND user_id = $2`,
+        [groupId, requester.id]
+    );
+    sendJson(ws, { type: 'group_deleted', payload: { groupId }, timestamp: new Date().toISOString() });
+    await broadcastGroupListsLocal();
+}
+
+async function handleDeleteGroupEveryone(ws, payload) {
+    const requester = users.get(ws);
+    const groupId = sanitizeText(payload.groupId, 80);
+    if (!requester?.id || !groupId) return;
+
+    const role = await getGroupRole(groupId, requester.id);
+    if (!['owner', 'admin'].includes(role)) {
+        sendJson(ws, { type: 'group_error', payload: { text: 'Solo administradores pueden eliminar el grupo para todos.' }, timestamp: new Date().toISOString() });
+        return;
+    }
+
+    const members = await pool.query('SELECT user_id FROM group_members WHERE group_id = $1', [groupId]);
+    await pool.query('UPDATE groups SET deleted_at = NOW() WHERE id = $1', [groupId]);
+    await publishCluster({ event: 'group_deleted', payload: { groupId }, memberIds: members.rows.map((r) => r.user_id) });
+    await publishCluster({ event: 'group_lists_update' });
+}
+
+async function handleToggleCensorship(ws, payload) {
+    ws.preferences = ws.preferences || { censorshipEnabled: true };
+    ws.preferences.censorshipEnabled = payload.enabled !== false;
+    sendJson(ws, {
+        type: 'censorship_updated',
+        payload: { enabled: ws.preferences.censorshipEnabled },
+        timestamp: new Date().toISOString()
+    });
+}
+
 async function handleGenerateInvite(ws, payload) {
     const requester = users.get(ws);
     const groupResult = await pool.query('SELECT * FROM groups WHERE id = $1 LIMIT 1', [payload.groupId]);
@@ -987,7 +1333,7 @@ async function handleGenerateInvite(ws, payload) {
         return;
     }
 
-    const isMember = await pool.query('SELECT 1 FROM group_members WHERE group_id = $1 AND user_id = $2', [group.id, requester.id]);
+    const isMember = await pool.query('SELECT role FROM group_members WHERE group_id = $1 AND user_id = $2', [group.id, requester.id]);
     if (isMember.rowCount === 0) {
         sendJson(ws, { type: 'group_error', payload: { text: 'No puedes generar una invitación para este grupo.' }, timestamp: new Date().toISOString() });
         return;
@@ -1020,7 +1366,7 @@ async function handleJoinByInvite(ws, payload) {
         return;
     }
 
-    const insert = await pool.query('INSERT INTO group_members(group_id, user_id) VALUES($1,$2) ON CONFLICT DO NOTHING', [groupId, requester.id]);
+    const insert = await pool.query(`INSERT INTO group_members(group_id, user_id, role, hidden_for_user) VALUES($1,$2,'member',FALSE) ON CONFLICT (group_id, user_id) DO UPDATE SET hidden_for_user = FALSE`, [groupId, requester.id]);
     if (insert.rowCount === 0) {
         sendJson(ws, { type: 'group_error', payload: { text: 'Ya eres miembro de este grupo.' }, timestamp: new Date().toISOString() });
         return;
@@ -1035,51 +1381,68 @@ async function handleJoinByInvite(ws, payload) {
 }
 
 async function handleGroupMessage(ws, payload, timestamp) {
-    const sender = users.get(ws);
-    const groupResult = await pool.query('SELECT * FROM groups WHERE id = $1 LIMIT 1', [payload.groupId]);
-    const group = groupResult.rows[0];
-    const text = sanitizeText(payload.text, MAX_MESSAGE_LENGTH);
+    try {
+        const sender = users.get(ws);
+        const groupResult = await pool.query('SELECT * FROM groups WHERE id = $1 AND deleted_at IS NULL LIMIT 1', [payload.groupId]);
+        const group = groupResult.rows[0];
+        const textOriginal = sanitizeText(payload.text, MAX_MESSAGE_LENGTH);
 
-    if (!sender?.nickname || !group || !text) {
-        sendJson(ws, { type: 'group_error', payload: { text: 'Mensaje de grupo inválido.' }, timestamp: new Date().toISOString() });
-        return;
+        if (!sender?.nickname || !group || !textOriginal) {
+            sendJson(ws, { type: 'group_error', payload: { text: 'Mensaje de grupo inválido.' }, timestamp: new Date().toISOString() });
+            return;
+        }
+
+        const isMember = await pool.query('SELECT 1 FROM group_members WHERE group_id = $1 AND user_id = $2', [group.id, sender.id]);
+        if (isMember.rowCount === 0) {
+            sendJson(ws, { type: 'group_error', payload: { text: 'Mensaje de grupo inválido.' }, timestamp: new Date().toISOString() });
+            return;
+        }
+
+        const textCensored = censorMessageText(textOriginal);
+        const reply = buildReplySnapshot(payload);
+        const isForwarded = Boolean(payload.isForwarded);
+        const forwardedFromId = sanitizeText(payload.forwardedFromId || '', 80) || null;
+
+        const message = {
+            id: randomUUID(),
+            groupId: group.id,
+            groupName: group.name,
+            fromId: sender.id,
+            from: sender.nickname,
+            text: textCensored,
+            textOriginal,
+            textCensored,
+            replyTo: reply.replyTo,
+            isForwarded,
+            forwardedFromId,
+            deletedForAll: false,
+            deletedBy: null,
+            timestamp: timestamp || new Date().toISOString()
+        };
+
+        await pool.query(
+            `INSERT INTO group_messages
+             (id, group_id, group_name, from_id, from_nickname, text, text_original, text_censored, reply_to_id, reply_author, reply_text, is_forwarded, forwarded_from_id, created_at)
+             VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14)`,
+            [message.id, message.groupId, message.groupName, message.fromId, message.from, message.textCensored, textOriginal, textCensored, reply.replyToId, reply.replyAuthor, reply.replyText, isForwarded, forwardedFromId, message.timestamp]
+        );
+
+        await pool.query(
+            `DELETE FROM group_messages gm
+             WHERE gm.group_id = $1
+             AND gm.id NOT IN (
+                SELECT id FROM group_messages WHERE group_id = $1 ORDER BY created_at DESC LIMIT $2
+             )`,
+            [message.groupId, MAX_HISTORY]
+        );
+
+        const membersResult = await pool.query('SELECT user_id FROM group_members WHERE group_id = $1', [group.id]);
+        await publishCluster({ event: 'group_msg', payload: message, memberIds: membersResult.rows.map((row) => row.user_id) });
+        await publishCluster({ event: 'group_lists_update' });
+    } catch (error) {
+        console.error('Error al procesar mensaje de grupo:', error);
+        sendJson(ws, { type: 'group_error', payload: { text: 'No se pudo enviar el mensaje de grupo.' }, timestamp: new Date().toISOString() });
     }
-
-    const isMember = await pool.query('SELECT 1 FROM group_members WHERE group_id = $1 AND user_id = $2', [group.id, sender.id]);
-    if (isMember.rowCount === 0) {
-        sendJson(ws, { type: 'group_error', payload: { text: 'Mensaje de grupo inválido.' }, timestamp: new Date().toISOString() });
-        return;
-    }
-
-    const message = {
-        id: randomUUID(),
-        groupId: group.id,
-        groupName: group.name,
-        fromId: sender.id,
-        from: sender.nickname,
-        text,
-        replyTo: payload.replyTo || null,
-        timestamp: timestamp || new Date().toISOString()
-    };
-
-    await pool.query(
-        `INSERT INTO group_messages(id, group_id, group_name, from_id, from_nickname, text, created_at)
-         VALUES($1,$2,$3,$4,$5,$6,$7)`,
-        [message.id, message.groupId, message.groupName, message.fromId, message.from, message.text, message.timestamp]
-    );
-
-    await pool.query(
-        `DELETE FROM group_messages gm
-         WHERE gm.group_id = $1
-         AND gm.id NOT IN (
-            SELECT id FROM group_messages WHERE group_id = $1 ORDER BY created_at DESC LIMIT $2
-         )`,
-        [message.groupId, MAX_HISTORY]
-    );
-
-    const membersResult = await pool.query('SELECT user_id FROM group_members WHERE group_id = $1', [group.id]);
-    await publishCluster({ event: 'group_msg', payload: message, memberIds: membersResult.rows.map((row) => row.user_id) });
-    await publishCluster({ event: 'group_lists_update' });
 }
 
 async function handleTyping(ws, payload) {
@@ -1116,22 +1479,27 @@ async function handleClusterEvent(rawMessage) {
 
     switch (data.event) {
         case 'broadcast':
-            broadcastLocal({ type: 'broadcast', payload: data.payload, timestamp });
+            broadcastMessageLocal('broadcast', data.payload, timestamp);
             break;
         case 'private_msg':
-            sendToLocalUser(data.payload.toId, { type: 'private_msg', payload: data.payload, timestamp });
-            sendToLocalUser(data.payload.fromId, { type: 'private_msg', payload: data.payload, timestamp });
+            sendMessageToLocalUser(data.payload.toId, 'private_msg', data.payload, timestamp);
+            sendMessageToLocalUser(data.payload.fromId, 'private_msg', data.payload, timestamp);
             break;
         case 'private_delete':
-            sendToLocalUser(data.payload.toId, { type: 'private_delete', payload: { id: data.payload.id }, timestamp });
-            sendToLocalUser(data.payload.fromId, { type: 'private_delete', payload: { id: data.payload.id }, timestamp });
+            sendToLocalUser(data.payload.toId, { type: 'private_delete', payload: { id: data.payload.id, deletedBy: data.payload.deletedBy }, timestamp });
+            sendToLocalUser(data.payload.fromId, { type: 'private_delete', payload: { id: data.payload.id, deletedBy: data.payload.deletedBy }, timestamp });
             break;
         case 'global_delete':
-            broadcastLocal({ type: 'global_delete', payload: { id: data.payload.id }, timestamp });
+            broadcastLocal({ type: 'global_delete', payload: { id: data.payload.id, deletedBy: data.payload.deletedBy }, timestamp });
             break;
         case 'group_delete':
             (data.memberIds || []).forEach((memberId) => {
-                sendToLocalUser(memberId, { type: 'group_delete', payload: { id: data.payload.id }, timestamp });
+                sendToLocalUser(memberId, { type: 'group_delete', payload: { id: data.payload.id, groupId: data.payload.groupId, deletedBy: data.payload.deletedBy }, timestamp });
+            });
+            break;
+        case 'group_deleted':
+            (data.memberIds || []).forEach((memberId) => {
+                sendToLocalUser(memberId, { type: 'group_deleted', payload: data.payload, timestamp });
             });
             break;
         case 'message_edited':
@@ -1161,7 +1529,7 @@ async function handleClusterEvent(rawMessage) {
             break;
         case 'group_msg':
             (data.memberIds || []).forEach((memberId) => {
-                sendToLocalUser(memberId, { type: 'group_msg', payload: data.payload, timestamp });
+                sendMessageToLocalUser(memberId, 'group_msg', data.payload, timestamp);
             });
             break;
         case 'typing_status':
@@ -1252,6 +1620,11 @@ async function handleSocketMessage(ws, rawMessage) {
             case 'add_group_members': await handleAddGroupMembers(ws, payload); break;
             case 'join_by_invite': await handleJoinByInvite(ws, payload); break;
             case 'generate_invite': await handleGenerateInvite(ws, payload); break;
+            case 'promote_group_admin': await handlePromoteGroupAdmin(ws, payload); break;
+            case 'leave_group': await handleLeaveGroup(ws, payload); break;
+            case 'hide_group_chat': await handleHideGroupChat(ws, payload); break;
+            case 'delete_group_everyone': await handleDeleteGroupEveryone(ws, payload); break;
+            case 'toggle_censorship': await handleToggleCensorship(ws, payload); break;
             default:
                 sendJson(ws, { type: 'error', payload: { text: 'Tipo de mensaje no reconocido.' }, timestamp: new Date().toISOString() });
         }
@@ -1265,6 +1638,7 @@ wss.on('connection', (ws) => {
     ws.connectionId = randomUUID();
     ws.isAlive = true;
     ws.rateLimit = { windowStart: Date.now(), count: 0 };
+    ws.preferences = { censorshipEnabled: true };
 
     logEvent('Cliente WebSocket conectado');
     ws.on('pong', () => { ws.isAlive = true; });

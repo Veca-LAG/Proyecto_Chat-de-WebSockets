@@ -178,6 +178,7 @@
                     <button class="icon-button" id="chatMenuButton" type="button" aria-haspopup="true" aria-expanded="false" aria-label="Opciones de conversación">⋮</button>
                     <div class="dropdown-menu chat-menu hidden" id="chatMenu" role="menu">
                         <button type="button" id="deleteConversationButton" role="menuitem">Eliminar conversación</button>
+                        <button type="button" id="toggleCensorshipButton" role="menuitem">Censura: activada</button>
                     </div>
                 </div>
             </header>
@@ -193,6 +194,8 @@
             <section class="messages-panel" id="messages" aria-live="polite" aria-label="Mensajes del chat"></section>
 
             <p class="typing-indicator" id="typingIndicator" aria-live="polite"></p>
+
+            <div id="replyComposerSlot" class="reply-composer-slot" aria-live="polite"></div>
 
             <form class="message-form" id="messageForm" autocomplete="off">
                 <button class="icon-button" id="emojiButton" type="button" aria-label="Abrir emojis">😊</button>
