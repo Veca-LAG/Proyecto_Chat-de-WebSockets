@@ -1,5 +1,289 @@
 [
   {
+    "term": "estupido",
+    "language": "es",
+    "country_code": "ALL",
+    "severity": "medium",
+    "category": "insult",
+    "source": "manual",
+    "active": true,
+    "generate_gender_variants": true
+  },
+  {
+    "term": "tonto",
+    "language": "es",
+    "country_code": "ALL",
+    "severity": "low",
+    "category": "insult",
+    "source": "manual",
+    "active": true,
+    "generate_gender_variants": true
+  },
+  {
+    "term": "imbecil",
+    "language": "es",
+    "country_code": "ALL",
+    "severity": "medium",
+    "category": "insult",
+    "source": "manual",
+    "active": true,
+    "generate_gender_variants": true
+  },
+  {
+    "term": "idiota",
+    "language": "es",
+    "country_code": "ALL",
+    "severity": "medium",
+    "category": "insult",
+    "source": "manual",
+    "active": true,
+    "generate_gender_variants": true
+  },
+  {
+    "term": "pendejo",
+    "language": "es",
+    "country_code": "ALL",
+    "severity": "medium",
+    "category": "profanity",
+    "source": "manual",
+    "active": true,
+    "generate_gender_variants": true
+  },
+  {
+    "term": "cabron",
+    "language": "es",
+    "country_code": "ALL",
+    "severity": "medium",
+    "category": "profanity",
+    "source": "manual",
+    "active": true,
+    "generate_gender_variants": true
+  },
+  {
+    "term": "culero",
+    "language": "es",
+    "country_code": "ALL",
+    "severity": "medium",
+    "category": "profanity",
+    "source": "manual",
+    "active": true,
+    "generate_gender_variants": true
+  },
+  {
+    "term": "maldito",
+    "language": "es",
+    "country_code": "ALL",
+    "severity": "medium",
+    "category": "insult",
+    "source": "manual",
+    "active": true,
+    "generate_gender_variants": true
+  },
+  {
+    "term": "malparido",
+    "language": "es",
+    "country_code": "ALL",
+    "severity": "high",
+    "category": "profanity",
+    "source": "manual",
+    "active": true,
+    "generate_gender_variants": true
+  },
+  {
+    "term": "puto",
+    "language": "es",
+    "country_code": "ALL",
+    "severity": "medium",
+    "category": "profanity",
+    "source": "manual",
+    "active": true,
+    "generate_gender_variants": true
+  },
+  {
+    "term": "bobo",
+    "language": "es",
+    "country_code": "ALL",
+    "severity": "low",
+    "category": "insult",
+    "source": "manual",
+    "active": true,
+    "generate_gender_variants": true
+  },
+  {
+    "term": "baboso",
+    "language": "es",
+    "country_code": "ALL",
+    "severity": "low",
+    "category": "insult",
+    "source": "manual",
+    "active": true,
+    "generate_gender_variants": true
+  },
+  {
+    "term": "ridículo",
+    "language": "es",
+    "country_code": "ALL",
+    "severity": "low",
+    "category": "insult",
+    "source": "manual",
+    "active": true,
+    "generate_gender_variants": true
+  },
+  {
+    "term": "ridiculo",
+    "language": "es",
+    "country_code": "ALL",
+    "severity": "low",
+    "category": "insult",
+    "source": "manual",
+    "active": true,
+    "generate_gender_variants": true
+  },
+  {
+    "term": "puta",
+    "language": "es",
+    "country_code": "ALL",
+    "severity": "high",
+    "category": "profanity",
+    "source": "manual",
+    "active": true
+  },
+  {
+    "term": "mierda",
+    "language": "es",
+    "country_code": "ALL",
+    "severity": "medium",
+    "category": "profanity",
+    "source": "manual",
+    "active": true
+  },
+  {
+    "term": "verga",
+    "language": "es",
+    "country_code": "ALL",
+    "severity": "high",
+    "category": "profanity",
+    "source": "manual",
+    "active": true
+  },
+  {
+    "term": "chingada",
+    "language": "es",
+    "country_code": "ALL",
+    "severity": "high",
+    "category": "profanity",
+    "source": "manual",
+    "active": true
+  },
+  {
+    "term": "chingar",
+    "language": "es",
+    "country_code": "ALL",
+    "severity": "high",
+    "category": "profanity",
+    "source": "manual",
+    "active": true
+  },
+  {
+    "term": "pinche",
+    "language": "es",
+    "country_code": "ALL",
+    "severity": "medium",
+    "category": "profanity",
+    "source": "manual",
+    "active": true
+  },
+  {
+    "term": "joder",
+    "language": "es",
+    "country_code": "ALL",
+    "severity": "medium",
+    "category": "profanity",
+    "source": "manual",
+    "active": true
+  },
+  {
+    "term": "coño",
+    "language": "es",
+    "country_code": "ALL",
+    "severity": "high",
+    "category": "profanity",
+    "source": "manual",
+    "active": true
+  },
+  {
+    "term": "hdp",
+    "language": "es",
+    "country_code": "ALL",
+    "severity": "high",
+    "category": "profanity",
+    "source": "manual",
+    "active": true
+  },
+  {
+    "term": "hijueputa",
+    "language": "es",
+    "country_code": "ALL",
+    "severity": "high",
+    "category": "profanity",
+    "source": "manual",
+    "active": true
+  },
+  {
+    "term": "fuck",
+    "language": "en",
+    "country_code": "ALL",
+    "severity": "high",
+    "category": "profanity",
+    "source": "manual",
+    "active": true
+  },
+  {
+    "term": "shit",
+    "language": "en",
+    "country_code": "ALL",
+    "severity": "medium",
+    "category": "profanity",
+    "source": "manual",
+    "active": true
+  },
+  {
+    "term": "bitch",
+    "language": "en",
+    "country_code": "ALL",
+    "severity": "medium",
+    "category": "profanity",
+    "source": "manual",
+    "active": true
+  },
+  {
+    "term": "asshole",
+    "language": "en",
+    "country_code": "ALL",
+    "severity": "medium",
+    "category": "profanity",
+    "source": "manual",
+    "active": true
+  },
+  {
+    "term": "bastard",
+    "language": "en",
+    "country_code": "ALL",
+    "severity": "medium",
+    "category": "profanity",
+    "source": "manual",
+    "active": true
+  },
+  {
+    "term": "damn",
+    "language": "en",
+    "country_code": "ALL",
+    "severity": "low",
+    "category": "profanity",
+    "source": "manual",
+    "active": true
+  },
+  {
     "term": "asesinato",
     "country_code": "ALL",
     "source": "palabras.json",
@@ -10374,5 +10658,75 @@
     "severity": "medium",
     "category": "profanity",
     "active": true
+  },
+  {
+    "term": "estupido",
+    "language": "es",
+    "country_code": "ALL",
+    "severity": "medium",
+    "category": "profanity",
+    "source": "manual",
+    "active": true,
+    "generate_gender_variants": true
+  },
+  {
+    "term": "sorra",
+    "language": "es",
+    "country_code": "ALL",
+    "severity": "medium",
+    "category": "profanity",
+    "source": "manual",
+    "active": true,
+    "generate_gender_variants": true
+  },
+  {
+    "term": "baboso",
+    "language": "es",
+    "country_code": "ALL",
+    "severity": "medium",
+    "category": "profanity",
+    "source": "manual",
+    "active": true,
+    "generate_gender_variants": true
+  },
+  {
+    "term": "tonto",
+    "language": "es",
+    "country_code": "ALL",
+    "severity": "medium",
+    "category": "profanity",
+    "source": "manual",
+    "active": true,
+    "generate_gender_variants": true
+  },
+  {
+    "term": "tarado",
+    "language": "es",
+    "country_code": "ALL",
+    "severity": "medium",
+    "category": "profanity",
+    "source": "manual",
+    "active": true,
+    "generate_gender_variants": true
+  },
+  {
+    "term": "pene",
+    "language": "es",
+    "country_code": "ALL",
+    "severity": "medium",
+    "category": "profanity",
+    "source": "manual",
+    "active": true,
+    "generate_gender_variants": true
+  },
+  {
+    "term": "chapulin",
+    "language": "es",
+    "country_code": "ALL",
+    "severity": "medium",
+    "category": "profanity",
+    "source": "manual",
+    "active": true,
+    "generate_gender_variants": true
   }
 ]

@@ -103,14 +103,6 @@ const FALLBACK_FORBIDDEN_TERMS = [
     'imbecil', 'imbécil', 'estupido', 'estúpido', 'fuck', 'shit', 'bitch'
 ];
 
-const HOMOGLYPH_MAP = new Map([
-    ['0', 'o'], ['1', 'i'], ['3', 'e'], ['4', 'a'], ['5', 's'], ['7', 't'],
-    ['@', 'a'], ['$', 's'], ['!', 'i'], ['|', 'i']
-]);
-
-const MODERATION_SEPARATOR_PATTERN = '[\\s._\\-*~|]*';
-const MODERATION_WORD_SEPARATOR_PATTERN = '[\\s._\\-*~|]+';
-
 let moderationCache = {
     version: 0,
     loadedAt: null,
@@ -118,77 +110,64 @@ let moderationCache = {
     regexList: []
 };
 
-function normalizeCharForModeration(char) {
-    const plain = String(char || '')
-        .toLowerCase()
-        .normalize('NFD')
-        .replace(/[\u0300-\u036f]/g, '');
-
-    const mapped = HOMOGLYPH_MAP.get(plain) || plain;
-    if (mapped === 'ñ') return 'n';
-    return mapped;
-}
-
-function normalizeForModeration(text) {
-    const chars = [];
-    for (const char of String(text || '')) {
-        const normalized = normalizeCharForModeration(char);
-        if (/^[a-z0-9]$/.test(normalized)) {
-            chars.push(normalized);
-        }
-    }
-    return chars.join('');
-}
-
 function escapeRegExp(value) {
     return String(value).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 }
 
-function charPatternForModeration(normalizedChar) {
-    const classes = {
-        a: '[aáàâãä@4]',
-        e: '[eéèêë3]',
-        i: '[iíìîï1!|]',
-        o: '[oóòôõö0]',
-        u: '[uúùûüv]',
-        s: '[s$5]',
-        t: '[t7]',
-        n: '[nñ]',
-        c: '[cç]'
+function normalizeTermForModeration(term) {
+    return String(term || '')
+        .toLowerCase()
+        .normalize('NFD')
+        .replace(/[\u0300-\u036f]/g, '')
+        .replace(/0/g, 'o')
+        .replace(/1/g, 'i')
+        .replace(/3/g, 'e')
+        .replace(/4/g, 'a')
+        .replace(/5/g, 's')
+        .replace(/7/g, 't')
+        .replace(/@/g, 'a')
+        .replace(/\$/g, 's')
+        .replace(/[^\p{L}\p{N}]+/gu, '');
+}
+
+function getCharacterPattern(char) {
+    const patterns = {
+        a: '[aáàäâ@4]',
+        b: '[b8]',
+        c: '[cçk]',
+        e: '[eéèëê3]',
+        i: '[iíìïî1!|]',
+        l: '[l1!|]',
+        o: '[oóòöôõ0]',
+        s: '[s5$z]',
+        t: '[t7+]',
+        u: '[uúùüûv]',
+        v: '[vúu]',
+        g: '[g9]',
+        z: '[z2s]',
+        n: '[nñ]'
     };
-    return classes[normalizedChar] || escapeRegExp(normalizedChar);
+    return patterns[char] || escapeRegExp(char);
 }
 
-function wordPatternForModeration(word) {
-    const normalized = normalizeForModeration(word);
-    if (!normalized) return '';
-    return normalized
-        .split('')
-        .map(charPatternForModeration)
-        .join(MODERATION_SEPARATOR_PATTERN);
+function buildLooseWordRegex(term) {
+    const normalized = normalizeTermForModeration(term);
+    if (!normalized || normalized.length < 3) return null;
+
+    const sep = '[\\s._\\-*~|/\\\\]*';
+    const wordPattern = normalized.split('').map(c => getCharacterPattern(c) + '+').join(sep);
+
+    return new RegExp(
+        '(^|[^\\p{L}\\p{N}])(' + wordPattern + ')(?=$|[^\\p{L}\\p{N}])',
+        'giu'
+    );
 }
-
-function buildModerationRegex(term) {
-    const words = String(term || '')
-        .trim()
-        .split(/\s+/)
-        .map(wordPatternForModeration)
-        .filter(Boolean);
-
-    if (!words.length) return null;
-
-    const body = words.join(MODERATION_WORD_SEPARATOR_PATTERN);
-
-    // Grupo 1 preserva el carácter previo; grupo 2 es únicamente la palabra/frase prohibida.
-    return new RegExp(`(^|[^\\p{L}\\p{N}])(${body})(?=$|[^\\p{L}\\p{N}])`, 'giu');
-}
-
 function normalizeTerms(rows) {
     const byKey = new Map();
 
     for (const row of rows || []) {
         const term = sanitizeText(row.term || row, 120);
-        const normalizedTerm = normalizeForModeration(row.normalized_term || term);
+        const normalizedTerm = normalizeTermForModeration(row.normalized_term || term);
         if (!term || normalizedTerm.length < 3) continue;
 
         const key = `${normalizedTerm}:${row.country_code || 'ALL'}`;
@@ -220,7 +199,7 @@ function fallbackModerationTerms() {
 
 function compileModerationRegexList(terms) {
     return terms
-        .map((item) => ({ ...item, regex: buildModerationRegex(item.term) }))
+        .map((item) => ({ term: item.term, regex: buildLooseWordRegex(item.term) }))
         .filter((item) => item.regex);
 }
 
@@ -294,71 +273,36 @@ async function seedModerationTermsIfEmpty() {
     logEvent(`Moderación sembrada en PostgreSQL: ${terms.length} términos base.`);
 }
 
-function findModerationMatches(originalText) {
-    const text = String(originalText || '');
-    const matches = [];
+function censorText(originalText) {
+    const original = String(originalText || '');
+    let censoredText = original;
+    const matchedTerms = [];
+
+    if (!moderationCache || !Array.isArray(moderationCache.regexList)) {
+        return { originalText: original, censoredText, matchedTerms };
+    }
 
     for (const item of moderationCache.regexList) {
+        if (!item.regex) continue;
         item.regex.lastIndex = 0;
-        let match;
-
-        while ((match = item.regex.exec(text)) !== null) {
-            const prefixLength = match[1]?.length || 0;
-            const matchedText = match[2] || '';
-            const start = match.index + prefixLength;
-            const end = start + matchedText.length;
-
-            matches.push({
-                term: item.term,
-                normalizedTerm: item.normalizedTerm,
-                severity: item.severity,
-                category: item.category,
-                source: item.source,
-                start,
-                end
+        if (item.regex.test(censoredText)) {
+            matchedTerms.push(item.term);
+            item.regex.lastIndex = 0;
+            censoredText = censoredText.replace(item.regex, (fullMatch, prefix, badWord) => {
+                return `${prefix}${'*'.repeat(badWord.length)}`;
             });
-
-            // Evita bucles en coincidencias vacías y permite capturar términos separados.
-            if (item.regex.lastIndex === match.index) item.regex.lastIndex += 1;
         }
     }
 
-    return matches.sort((a, b) => a.start - b.start || b.end - a.end);
-}
-
-function censorFromMatches(originalText, matches) {
-    if (!matches.length) return String(originalText || '');
-
-    const original = String(originalText || '');
-    const ranges = [];
-
-    for (const match of matches) {
-        const last = ranges[ranges.length - 1];
-        if (last && match.start <= last.end) {
-            last.end = Math.max(last.end, match.end);
-        } else {
-            ranges.push({ start: match.start, end: match.end });
-        }
-    }
-
-    let result = '';
-    let cursor = 0;
-    for (const range of ranges) {
-        result += original.slice(cursor, range.start);
-        result += '*'.repeat(Math.max(1, range.end - range.start));
-        cursor = range.end;
-    }
-    result += original.slice(cursor);
-    return result;
+    return { originalText: original, censoredText, matchedTerms };
 }
 
 function moderateMessageText(originalText) {
-    const textOriginal = String(originalText || '');
-    const matches = findModerationMatches(textOriginal);
+    const result = censorText(originalText);
     return {
-        textOriginal,
-        textCensored: censorFromMatches(textOriginal, matches),
-        matchedTerms: [...new Set(matches.map((match) => match.term))]
+        textOriginal:  result.originalText,
+        textCensored:  result.censoredText,
+        matchedTerms:  result.matchedTerms
     };
 }
 
