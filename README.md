@@ -235,3 +235,59 @@ npm run check:sensitive
 ## Nota importante
 
 `data/db.json` queda únicamente como referencia antigua y está bloqueado por `.gitignore`. La versión distribuida guarda datos en PostgreSQL y usa Redis para comunicación entre servidores.
+
+---
+
+## Moderación y censura escalable
+
+El proyecto incluye un sistema de censura diseñado para funcionar con **varios servidores WebSocket al mismo tiempo**.
+
+### Arquitectura elegida
+
+```text
+Servidor WebSocket 1 ┐
+                     ├── PostgreSQL: catálogo moderation_terms
+Servidor WebSocket 2 ┘
+        │
+        └── Redis: evento moderation_terms_updated
+```
+
+La censura se aplica en `server.js`, antes de enviar el mensaje a los demás clientes. Esto evita que alguien pueda saltarse el filtro modificando el frontend.
+
+### Catálogo de términos
+
+El catálogo base está en:
+
+```text
+config/moderation_terms.seed.json
+```
+
+Ese archivo se importa a PostgreSQL. Todos los servidores leen desde la misma base de datos y mantienen una copia en memoria para mejorar el rendimiento.
+
+### Importar o actualizar palabras prohibidas
+
+Con PostgreSQL y Redis levantados:
+
+```powershell
+npm run moderation:import
+```
+
+Este comando actualiza la tabla `moderation_terms` y avisa por Redis a los servidores para que recarguen la caché.
+
+### Toggle por usuario
+
+Cada usuario puede activar o desactivar la censura desde la interfaz. Esa preferencia se guarda en PostgreSQL en la tabla:
+
+```text
+user_moderation_preferences
+```
+
+Por defecto, la censura está activada.
+
+### Documentación detallada
+
+Ver:
+
+```text
+docs/MODERACION_ESCALABLE.md
+```

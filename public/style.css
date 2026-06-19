@@ -2729,16 +2729,46 @@ article.message:hover .message-menu-trigger,
         border-right: 0;
     }
 
-    /* Anula el left: var(--rail-width) del breakpoint 860px
-       porque en móvil el rail está abajo, no al lado */
+    /* Anula left: var(--rail-width) del 860px — en móvil el rail está abajo */
     .conversation-sidebar {
         left: 0 !important;
         bottom: 62px;
         width: min(320px, 90vw);
     }
 
+    /* Usar flex en lugar del grid de escritorio para fijar el formulario */
     .chat-panel {
-        padding-bottom: 62px;
+        display: flex;
+        flex-direction: column;
+        height: calc(100vh - 62px);
+        overflow: hidden;
+    }
+
+    .messages-panel {
+        flex: 1;
+        min-height: 0;
+        overflow-y: auto;
+    }
+
+    /* El formulario siempre queda anclado al fondo, visible */
+    .message-form {
+        flex-shrink: 0;
+    }
+
+    #replyComposerSlot {
+        flex-shrink: 0;
+    }
+
+    .typing-indicator {
+        flex-shrink: 0;
+    }
+
+    .chat-header {
+        flex-shrink: 0;
+    }
+
+    .conversation-search {
+        flex-shrink: 0;
     }
 }
 
@@ -2809,5 +2839,28 @@ article.message:hover .message-menu-trigger,
 
     .wa-reaction-bar.is-mobile {
         bottom: 357px !important;
+    }
+}
+
+/* ── Sidebar backdrop (overlay para cerrar en móvil) ──────────────────────── */
+.sidebar-backdrop {
+    position: fixed;
+    inset: 0;
+    z-index: 59;
+    background: rgba(0, 0, 0, 0.42);
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.25s ease;
+}
+
+.sidebar-backdrop.is-visible {
+    opacity: 1;
+    pointer-events: auto;
+}
+
+/* Solo activo en breakpoints donde el sidebar es un panel flotante */
+@media (min-width: 861px) {
+    .sidebar-backdrop {
+        display: none !important;
     }
 }

@@ -94,93 +94,276 @@ function sanitizeText(value, maxLength) {
 }
 
 
-const DEFAULT_FORBIDDEN_TERMS = [
-    // Español
-    'puta', 'puto', 'putas', 'putos', 'putita',
-    'mierda', 'mierdas',
-    'coño', 'cono',
-    'joder', 'jodete',
-    'cabron', 'cabrona', 'cabrón', 'cabrones',
-    'culo', 'culos',
-    'gilipollas',
-    'hostia', 'hostias',
-    'pendejo', 'pendeja', 'pendejos',
-    'chingada', 'chingar', 'chingao', 'chingon',
-    'verga', 'vergon',
-    'pinche', 'pinches',
-    'culero', 'culera',
-    'marica', 'maricon', 'maricón',
-    'polla', 'pollas',
-    'follar', 'folla',
-    'carajo', 'caracho',
-    'idiota', 'idiotas',
-    'tonto', 'tonta', 'tontos',
-    'estupido', 'estupida', 'estúpido',
-    'imbecil', 'imbécil',
-    'hdp', 'hjdp',
-    // Inglés
-    'stupid', 'idiot', 'fool',
-    'bitch', 'bitches',
-    'fuck', 'fucking', 'fucker',
-    'shit', 'shits',
-    'asshole', 'ass',
-    'bastard', 'bastards',
-    'damn', 'crap',
-    'dick', 'cock', 'cunt',
-    'whore', 'slut',
-    'nigger', 'nigga',
+const MODERATION_TERMS_SEED_FILE = path.join(__dirname, 'config', 'moderation_terms.seed.json');
+const MODERATION_RELOAD_EVENT = 'moderation_terms_updated';
+
+const FALLBACK_FORBIDDEN_TERMS = [
+    'puta', 'puto', 'mierda', 'cabron', 'cabrón', 'pendejo', 'pendeja',
+    'chingada', 'chingar', 'verga', 'pinche', 'culero', 'idiota',
+    'imbecil', 'imbécil', 'estupido', 'estúpido', 'fuck', 'shit', 'bitch'
 ];
 
-function normalizeForModeration(text) {
-    return String(text || '')
+const HOMOGLYPH_MAP = new Map([
+    ['0', 'o'], ['1', 'i'], ['3', 'e'], ['4', 'a'], ['5', 's'], ['7', 't'],
+    ['@', 'a'], ['$', 's'], ['!', 'i'], ['|', 'i']
+]);
+
+const MODERATION_SEPARATOR_PATTERN = '[\\s._\\-*~|]*';
+const MODERATION_WORD_SEPARATOR_PATTERN = '[\\s._\\-*~|]+';
+
+let moderationCache = {
+    version: 0,
+    loadedAt: null,
+    terms: [],
+    regexList: []
+};
+
+function normalizeCharForModeration(char) {
+    const plain = String(char || '')
         .toLowerCase()
         .normalize('NFD')
-        .replace(/[\u0300-\u036f]/g, '')
-        .replace(/0/g, 'o')
-        .replace(/1/g, 'i')
-        .replace(/3/g, 'e')
-        .replace(/4/g, 'a')
-        .replace(/5/g, 's')
-        .replace(/7/g, 't')
-        .replace(/@/g, 'a')
-        .replace(/\$/g, 's')
-        .replace(/[._\-*~|\s]+/g, '');
+        .replace(/[\u0300-\u036f]/g, '');
+
+    const mapped = HOMOGLYPH_MAP.get(plain) || plain;
+    if (mapped === 'ñ') return 'n';
+    return mapped;
+}
+
+function normalizeForModeration(text) {
+    const chars = [];
+    for (const char of String(text || '')) {
+        const normalized = normalizeCharForModeration(char);
+        if (/^[a-z0-9]$/.test(normalized)) {
+            chars.push(normalized);
+        }
+    }
+    return chars.join('');
 }
 
 function escapeRegExp(value) {
     return String(value).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 }
 
-function censorWithRegex(originalText) {
-    let censored = String(originalText || '');
-    const normalized = normalizeForModeration(originalText);
-    for (const term of DEFAULT_FORBIDDEN_TERMS) {
-        const normalizedTerm = normalizeForModeration(term);
-        if (!normalizedTerm || !normalized.includes(normalizedTerm)) continue;
-        const loosePattern = term
-            .split('')
-            .map((char) => escapeRegExp(char))
-            .join('[\\s._\\-*~|]*');
-        censored = censored.replace(new RegExp(`\\b${loosePattern}\\b`, 'gi'), '*'.repeat(term.length));
-    }
-    return censored;
+function charPatternForModeration(normalizedChar) {
+    const classes = {
+        a: '[aáàâãä@4]',
+        e: '[eéèêë3]',
+        i: '[iíìîï1!|]',
+        o: '[oóòôõö0]',
+        u: '[uúùûüv]',
+        s: '[s$5]',
+        t: '[t7]',
+        n: '[nñ]',
+        c: '[cç]'
+    };
+    return classes[normalizedChar] || escapeRegExp(normalizedChar);
 }
 
-function censorWithBadWords(originalText) {
-    try {
-        // Opción A opcional: instalar con `npm install bad-words`.
-        const Filter = require('bad-words');
-        const filter = new Filter();
-        filter.addWords(...DEFAULT_FORBIDDEN_TERMS);
-        return filter.clean(String(originalText || ''));
-    } catch {
-        return censorWithRegex(originalText);
+function wordPatternForModeration(word) {
+    const normalized = normalizeForModeration(word);
+    if (!normalized) return '';
+    return normalized
+        .split('')
+        .map(charPatternForModeration)
+        .join(MODERATION_SEPARATOR_PATTERN);
+}
+
+function buildModerationRegex(term) {
+    const words = String(term || '')
+        .trim()
+        .split(/\s+/)
+        .map(wordPatternForModeration)
+        .filter(Boolean);
+
+    if (!words.length) return null;
+
+    const body = words.join(MODERATION_WORD_SEPARATOR_PATTERN);
+
+    // Grupo 1 preserva el carácter previo; grupo 2 es únicamente la palabra/frase prohibida.
+    return new RegExp(`(^|[^\\p{L}\\p{N}])(${body})(?=$|[^\\p{L}\\p{N}])`, 'giu');
+}
+
+function normalizeTerms(rows) {
+    const byKey = new Map();
+
+    for (const row of rows || []) {
+        const term = sanitizeText(row.term || row, 120);
+        const normalizedTerm = normalizeForModeration(row.normalized_term || term);
+        if (!term || normalizedTerm.length < 3) continue;
+
+        const key = `${normalizedTerm}:${row.country_code || 'ALL'}`;
+        if (!byKey.has(key)) {
+            byKey.set(key, {
+                term,
+                normalizedTerm,
+                countryCode: row.country_code || 'ALL',
+                severity: row.severity || 'medium',
+                category: row.category || 'profanity',
+                source: row.source || 'fallback',
+                active: row.active !== false
+            });
+        }
     }
+
+    return [...byKey.values()].sort((a, b) => b.normalizedTerm.length - a.normalizedTerm.length);
+}
+
+function fallbackModerationTerms() {
+    return normalizeTerms(FALLBACK_FORBIDDEN_TERMS.map((term) => ({
+        term,
+        country_code: 'ALL',
+        severity: 'medium',
+        category: 'profanity',
+        source: 'fallback'
+    })));
+}
+
+function compileModerationRegexList(terms) {
+    return terms
+        .map((item) => ({ ...item, regex: buildModerationRegex(item.term) }))
+        .filter((item) => item.regex);
+}
+
+async function loadModerationTerms() {
+    try {
+        const result = await pool.query(`
+            SELECT term, normalized_term, country_code, severity, category, source
+            FROM moderation_terms
+            WHERE active = TRUE
+            ORDER BY LENGTH(normalized_term) DESC, term ASC
+        `);
+
+        const terms = normalizeTerms(result.rows);
+        const activeTerms = terms.length ? terms : fallbackModerationTerms();
+        moderationCache = {
+            version: moderationCache.version + 1,
+            loadedAt: new Date(),
+            terms: activeTerms,
+            regexList: compileModerationRegexList(activeTerms)
+        };
+
+        logEvent(`Moderación cargada: ${moderationCache.terms.length} términos activos.`);
+        return moderationCache;
+    } catch (error) {
+        const activeTerms = fallbackModerationTerms();
+        moderationCache = {
+            version: moderationCache.version + 1,
+            loadedAt: new Date(),
+            terms: activeTerms,
+            regexList: compileModerationRegexList(activeTerms)
+        };
+        console.warn('No se pudo cargar moderation_terms desde PostgreSQL. Usando lista mínima:', error.message);
+        return moderationCache;
+    }
+}
+
+function loadSeedModerationTerms() {
+    try {
+        if (!fs.existsSync(MODERATION_TERMS_SEED_FILE)) return [];
+        const raw = fs.readFileSync(MODERATION_TERMS_SEED_FILE, 'utf8');
+        const parsed = JSON.parse(raw);
+        return Array.isArray(parsed) ? parsed : [];
+    } catch (error) {
+        console.warn('No se pudo leer config/moderation_terms.seed.json:', error.message);
+        return [];
+    }
+}
+
+async function seedModerationTermsIfEmpty() {
+    const countResult = await pool.query('SELECT COUNT(*)::int AS total FROM moderation_terms');
+    if ((countResult.rows[0]?.total || 0) > 0) return;
+
+    const seedTerms = normalizeTerms(loadSeedModerationTerms());
+    const terms = seedTerms.length ? seedTerms : fallbackModerationTerms();
+
+    for (const item of terms) {
+        await pool.query(
+            `INSERT INTO moderation_terms
+             (term, normalized_term, language, country_code, severity, category, source, active)
+             VALUES ($1,$2,$3,$4,$5,$6,$7,$8)
+             ON CONFLICT (normalized_term, country_code) DO UPDATE
+             SET term = EXCLUDED.term,
+                 severity = EXCLUDED.severity,
+                 category = EXCLUDED.category,
+                 source = EXCLUDED.source,
+                 updated_at = NOW()`,
+            [item.term, item.normalizedTerm, 'es', item.countryCode, item.severity, item.category, item.source, item.active !== false]
+        );
+    }
+
+    logEvent(`Moderación sembrada en PostgreSQL: ${terms.length} términos base.`);
+}
+
+function findModerationMatches(originalText) {
+    const text = String(originalText || '');
+    const matches = [];
+
+    for (const item of moderationCache.regexList) {
+        item.regex.lastIndex = 0;
+        let match;
+
+        while ((match = item.regex.exec(text)) !== null) {
+            const prefixLength = match[1]?.length || 0;
+            const matchedText = match[2] || '';
+            const start = match.index + prefixLength;
+            const end = start + matchedText.length;
+
+            matches.push({
+                term: item.term,
+                normalizedTerm: item.normalizedTerm,
+                severity: item.severity,
+                category: item.category,
+                source: item.source,
+                start,
+                end
+            });
+
+            // Evita bucles en coincidencias vacías y permite capturar términos separados.
+            if (item.regex.lastIndex === match.index) item.regex.lastIndex += 1;
+        }
+    }
+
+    return matches.sort((a, b) => a.start - b.start || b.end - a.end);
+}
+
+function censorFromMatches(originalText, matches) {
+    if (!matches.length) return String(originalText || '');
+
+    const original = String(originalText || '');
+    const ranges = [];
+
+    for (const match of matches) {
+        const last = ranges[ranges.length - 1];
+        if (last && match.start <= last.end) {
+            last.end = Math.max(last.end, match.end);
+        } else {
+            ranges.push({ start: match.start, end: match.end });
+        }
+    }
+
+    let result = '';
+    let cursor = 0;
+    for (const range of ranges) {
+        result += original.slice(cursor, range.start);
+        result += '*'.repeat(Math.max(1, range.end - range.start));
+        cursor = range.end;
+    }
+    result += original.slice(cursor);
+    return result;
+}
+
+function moderateMessageText(originalText) {
+    const textOriginal = String(originalText || '');
+    const matches = findModerationMatches(textOriginal);
+    return {
+        textOriginal,
+        textCensored: censorFromMatches(textOriginal, matches),
+        matchedTerms: [...new Set(matches.map((match) => match.term))]
+    };
 }
 
 function censorMessageText(originalText) {
-    // Cambia a censorWithBadWords(originalText) si desean activar la librería bad-words.
-    return censorWithRegex(originalText);
+    return moderateMessageText(originalText).textCensored;
 }
 
 function clientWantsCensorship(ws) {
@@ -428,6 +611,43 @@ async function initDatabase() {
         );
     `);
 
+    await pool.query(`
+        CREATE TABLE IF NOT EXISTS moderation_terms (
+            id SERIAL PRIMARY KEY,
+            term TEXT NOT NULL,
+            normalized_term TEXT NOT NULL,
+            language TEXT NOT NULL DEFAULT 'es',
+            country_code TEXT NOT NULL DEFAULT 'ALL',
+            severity TEXT NOT NULL DEFAULT 'medium',
+            category TEXT NOT NULL DEFAULT 'profanity',
+            source TEXT NOT NULL DEFAULT 'manual',
+            active BOOLEAN NOT NULL DEFAULT TRUE,
+            created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+            updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+            UNIQUE (normalized_term, country_code)
+        );
+    `);
+
+    await pool.query(`
+        CREATE TABLE IF NOT EXISTS user_moderation_preferences (
+            user_id UUID PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE,
+            censorship_enabled BOOLEAN NOT NULL DEFAULT TRUE,
+            updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+        );
+    `);
+
+    await pool.query(`
+        CREATE TABLE IF NOT EXISTS moderation_audit (
+            id SERIAL PRIMARY KEY,
+            message_id UUID NULL,
+            user_id UUID NULL REFERENCES users(id) ON DELETE SET NULL,
+            message_kind TEXT NOT NULL,
+            matched_terms TEXT[] NOT NULL DEFAULT ARRAY[]::TEXT[],
+            created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+        );
+    `);
+
+
     await pool.query(`UPDATE global_messages SET text_original = text WHERE text_original IS NULL;`);
     await pool.query(`UPDATE global_messages SET text_censored = text WHERE text_censored IS NULL;`);
     await pool.query(`UPDATE private_messages SET text_original = text WHERE text_original IS NULL;`);
@@ -438,6 +658,10 @@ async function initDatabase() {
     await pool.query('CREATE INDEX IF NOT EXISTS idx_global_messages_created_at ON global_messages(created_at DESC);');
     await pool.query('CREATE INDEX IF NOT EXISTS idx_private_messages_users ON private_messages(from_id, to_id, created_at DESC);');
     await pool.query('CREATE INDEX IF NOT EXISTS idx_group_messages_group_created ON group_messages(group_id, created_at DESC);');
+    await pool.query('CREATE INDEX IF NOT EXISTS idx_moderation_terms_active ON moderation_terms(active, normalized_term);');
+    await pool.query('CREATE INDEX IF NOT EXISTS idx_moderation_audit_created ON moderation_audit(created_at DESC);');
+
+    await seedModerationTermsIfEmpty();
 }
 
 async function generateUserCode() {
@@ -488,6 +712,43 @@ async function findUserBySessionToken(token) {
 
 async function removeSession(token) {
     await pool.query('DELETE FROM sessions WHERE token = $1', [sanitizeText(token, 200)]);
+}
+
+async function getUserModerationPreference(userId) {
+    const result = await pool.query(
+        `SELECT censorship_enabled
+         FROM user_moderation_preferences
+         WHERE user_id = $1
+         LIMIT 1`,
+        [userId]
+    );
+
+    if (!result.rows[0]) return true;
+    return result.rows[0].censorship_enabled !== false;
+}
+
+async function setUserModerationPreference(userId, enabled) {
+    await pool.query(
+        `INSERT INTO user_moderation_preferences(user_id, censorship_enabled, updated_at)
+         VALUES($1,$2,NOW())
+         ON CONFLICT (user_id)
+         DO UPDATE SET censorship_enabled = EXCLUDED.censorship_enabled, updated_at = NOW()`,
+        [userId, enabled !== false]
+    );
+}
+
+async function saveModerationAudit({ messageId, userId, kind, matchedTerms }) {
+    if (!Array.isArray(matchedTerms) || matchedTerms.length === 0) return;
+
+    await pool.query(
+        `INSERT INTO moderation_audit(message_id, user_id, message_kind, matched_terms)
+         VALUES($1,$2,$3,$4)`,
+        [messageId || null, userId || null, kind || 'unknown', matchedTerms]
+    );
+}
+
+async function notifyModerationTermsUpdated(reason = 'manual') {
+    await publishCluster({ event: MODERATION_RELOAD_EVENT, payload: { reason, serverId: SERVER_ID } });
 }
 
 async function getOnlineUserIds() {
@@ -725,6 +986,8 @@ async function attachAuthenticatedUser(ws, userRow, sessionToken) {
 
     const wasOfflineLocal = !socketsByUserId.has(userRow.id);
     const publicUser = toPublicUser(userRow, true);
+    const censorshipEnabled = await getUserModerationPreference(userRow.id);
+    ws.preferences = { ...(ws.preferences || {}), censorshipEnabled };
     users.set(ws, publicUser);
 
     if (!socketsByUserId.has(userRow.id)) socketsByUserId.set(userRow.id, new Set());
@@ -734,7 +997,7 @@ async function attachAuthenticatedUser(ws, userRow, sessionToken) {
 
     sendJson(ws, {
         type: 'auth_success',
-        payload: { sessionToken, user: publicUser },
+        payload: { sessionToken, user: publicUser, censorshipEnabled },
         timestamp: new Date().toISOString()
     });
 
@@ -882,7 +1145,8 @@ async function handleMessage(ws, payload, timestamp) {
         const textOriginal = sanitizeText(payload.text || payload.texto, MAX_MESSAGE_LENGTH);
         if (!user?.nickname || !textOriginal) return;
 
-        const textCensored = censorMessageText(textOriginal);
+        const moderation = moderateMessageText(textOriginal);
+        const textCensored = moderation.textCensored;
         const reply = buildReplySnapshot(payload);
         const isForwarded = Boolean(payload.isForwarded);
         const forwardedFromId = sanitizeText(payload.forwardedFromId || '', 80) || null;
@@ -915,6 +1179,8 @@ async function handleMessage(ws, payload, timestamp) {
             [MAX_HISTORY]
         );
 
+        await saveModerationAudit({ messageId: message.id, userId: user.id, kind: 'global', matchedTerms: moderation.matchedTerms });
+
         await publishCluster({ event: 'broadcast', payload: message });
     } catch (error) {
         console.error('Error al procesar mensaje global:', error);
@@ -933,7 +1199,8 @@ async function handlePrivate(ws, payload, timestamp) {
             return;
         }
 
-        const textCensored = censorMessageText(textOriginal);
+        const moderation = moderateMessageText(textOriginal);
+        const textCensored = moderation.textCensored;
         const reply = buildReplySnapshot(payload);
         const isForwarded = Boolean(payload.isForwarded);
         const forwardedFromId = sanitizeText(payload.forwardedFromId || '', 80) || null;
@@ -974,6 +1241,8 @@ async function handlePrivate(ws, payload, timestamp) {
              )`,
             [message.fromId, message.toId, MAX_HISTORY]
         );
+
+        await saveModerationAudit({ messageId: message.id, userId: sender.id, kind: 'private', matchedTerms: moderation.matchedTerms });
 
         await publishCluster({
             event: 'private_msg',
@@ -1112,9 +1381,11 @@ async function handleEditMessage(ws, payload) {
             sendJson(ws, { type: 'error', payload: { text: 'No puedes editar este mensaje.' }, timestamp: new Date().toISOString() });
             return;
         }
-        const censored = censorMessageText(newText);
+        const moderation = moderateMessageText(newText);
+        const censored = moderation.textCensored;
         await pool.query('UPDATE global_messages SET text = $1, text_original = $2, text_censored = $3 WHERE id = $4 AND deleted_for_all = FALSE', [censored, newText, censored, id]);
-        await publishCluster({ event: 'message_edited', payload: { id, text: censored, kind: 'global' } });
+        await saveModerationAudit({ messageId: id, userId: requester.id, kind: 'global_edit', matchedTerms: moderation.matchedTerms });
+        await publishCluster({ event: 'message_edited', payload: { id, textOriginal: newText, textCensored: censored, text: censored, kind: 'global' } });
 
     } else if (kind === 'private') {
         const { rows } = await pool.query('SELECT * FROM private_messages WHERE id = $1 LIMIT 1', [id]);
@@ -1123,9 +1394,11 @@ async function handleEditMessage(ws, payload) {
             sendJson(ws, { type: 'private_error', payload: { text: 'No puedes editar este mensaje.' }, timestamp: new Date().toISOString() });
             return;
         }
-        const censored = censorMessageText(newText);
+        const moderation = moderateMessageText(newText);
+        const censored = moderation.textCensored;
         await pool.query('UPDATE private_messages SET text = $1, text_original = $2, text_censored = $3 WHERE id = $4 AND deleted_for_all = FALSE', [censored, newText, censored, id]);
-        await publishCluster({ event: 'message_edited', payload: { id, text: censored, kind: 'private', fromId: msg.from_id, toId: msg.to_id } });
+        await saveModerationAudit({ messageId: id, userId: requester.id, kind: 'private_edit', matchedTerms: moderation.matchedTerms });
+        await publishCluster({ event: 'message_edited', payload: { id, textOriginal: newText, textCensored: censored, text: censored, kind: 'private', fromId: msg.from_id, toId: msg.to_id } });
 
     } else if (kind === 'group') {
         const { rows } = await pool.query('SELECT * FROM group_messages WHERE id = $1 LIMIT 1', [id]);
@@ -1134,10 +1407,12 @@ async function handleEditMessage(ws, payload) {
             sendJson(ws, { type: 'group_error', payload: { text: 'No puedes editar este mensaje.' }, timestamp: new Date().toISOString() });
             return;
         }
-        const censored = censorMessageText(newText);
+        const moderation = moderateMessageText(newText);
+        const censored = moderation.textCensored;
         await pool.query('UPDATE group_messages SET text = $1, text_original = $2, text_censored = $3 WHERE id = $4 AND deleted_for_all = FALSE', [censored, newText, censored, id]);
+        await saveModerationAudit({ messageId: id, userId: requester.id, kind: 'group_edit', matchedTerms: moderation.matchedTerms });
         const members = await pool.query('SELECT user_id FROM group_members WHERE group_id = $1', [msg.group_id]);
-        await publishCluster({ event: 'message_edited', payload: { id, text: censored, kind: 'group' }, memberIds: members.rows.map((r) => r.user_id) });
+        await publishCluster({ event: 'message_edited', payload: { id, textOriginal: newText, textCensored: censored, text: censored, kind: 'group' }, memberIds: members.rows.map((r) => r.user_id) });
     }
 }
 
@@ -1347,13 +1622,25 @@ async function handleDeleteGroupEveryone(ws, payload) {
 }
 
 async function handleToggleCensorship(ws, payload) {
+    const user = users.get(ws);
+    const enabled = payload.enabled !== false;
+
     ws.preferences = ws.preferences || { censorshipEnabled: true };
-    ws.preferences.censorshipEnabled = payload.enabled !== false;
+    ws.preferences.censorshipEnabled = enabled;
+
+    if (user?.id) {
+        await setUserModerationPreference(user.id, enabled);
+    }
+
     sendJson(ws, {
         type: 'censorship_updated',
-        payload: { enabled: ws.preferences.censorshipEnabled },
+        payload: { enabled },
         timestamp: new Date().toISOString()
     });
+
+    if (user?.id) {
+        await sendInitialState(ws, user);
+    }
 }
 
 async function handleGenerateInvite(ws, payload) {
@@ -1431,7 +1718,8 @@ async function handleGroupMessage(ws, payload, timestamp) {
             return;
         }
 
-        const textCensored = censorMessageText(textOriginal);
+        const moderation = moderateMessageText(textOriginal);
+        const textCensored = moderation.textCensored;
         const reply = buildReplySnapshot(payload);
         const isForwarded = Boolean(payload.isForwarded);
         const forwardedFromId = sanitizeText(payload.forwardedFromId || '', 80) || null;
@@ -1470,6 +1758,7 @@ async function handleGroupMessage(ws, payload, timestamp) {
         );
 
         const membersResult = await pool.query('SELECT user_id FROM group_members WHERE group_id = $1', [group.id]);
+        await saveModerationAudit({ messageId: message.id, userId: sender.id, kind: 'group', matchedTerms: moderation.matchedTerms });
         await publishCluster({ event: 'group_msg', payload: message, memberIds: membersResult.rows.map((row) => row.user_id) });
         await publishCluster({ event: 'group_lists_update' });
     } catch (error) {
@@ -1537,13 +1826,13 @@ async function handleClusterEvent(rawMessage) {
             break;
         case 'message_edited':
             if (data.payload.kind === 'global') {
-                broadcastLocal({ type: 'message_edited', payload: data.payload, timestamp });
+                broadcastMessageLocal('message_edited', data.payload, timestamp);
             } else if (data.payload.kind === 'private') {
-                sendToLocalUser(data.payload.fromId, { type: 'message_edited', payload: data.payload, timestamp });
-                sendToLocalUser(data.payload.toId,   { type: 'message_edited', payload: data.payload, timestamp });
+                sendMessageToLocalUser(data.payload.fromId, 'message_edited', data.payload, timestamp);
+                sendMessageToLocalUser(data.payload.toId, 'message_edited', data.payload, timestamp);
             } else if (data.payload.kind === 'group') {
                 (data.memberIds || []).forEach((memberId) => {
-                    sendToLocalUser(memberId, { type: 'message_edited', payload: data.payload, timestamp });
+                    sendMessageToLocalUser(memberId, 'message_edited', data.payload, timestamp);
                 });
             }
             break;
@@ -1573,6 +1862,9 @@ async function handleClusterEvent(rawMessage) {
             break;
         case 'group_lists_update':
             await broadcastGroupListsLocal();
+            break;
+        case 'moderation_terms_updated':
+            await loadModerationTerms();
             break;
         case 'system':
             broadcastLocal({ type: 'system', payload: data.payload, timestamp: data.emittedAt });
@@ -1699,6 +1991,7 @@ async function start() {
 
     await pool.query('SELECT 1');
     await initDatabase();
+    await loadModerationTerms();
     await redis.connect();
     await subscriber.connect();
     await cleanupServerPresence();

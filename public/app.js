@@ -590,6 +590,8 @@ function handleServerMessage(rawMessage) {
     switch (type) {
         case 'auth_success':
             setAuthLoading(false);
+            state.censorshipEnabled = payload.censorshipEnabled !== false;
+            updateCensorshipLabel(elements.toggleCensorshipButton, state.censorshipEnabled);
             setAuthenticatedUser(payload.user, payload.sessionToken);
             elements.loginModal.classList.add('hidden');
             // 🌐 FIJAR EL FORO GLOBAL COMO CHAT ACTIVO AL ENTRAR MANUALLY
@@ -756,7 +758,7 @@ function setActiveSection(section, openDefault = true) {
 
     // En móvil, abre el sidebar al cambiar de sección para ver la lista
     if (window.matchMedia('(max-width: 860px)').matches && section !== 'global') {
-        elements.userSidebar.classList.add('is-open');
+        openSidebar();
     }
 }
 
@@ -982,7 +984,7 @@ function selectGlobalChat() {
     renderActiveChatMessages();
     renderProfileUsers();
     updateComposerState();
-    elements.userSidebar.classList.remove('is-open');
+    closeSidebar();
 }
 
 /**
@@ -1000,7 +1002,7 @@ function selectPrivateByUser(user) {
     renderActiveChatShell();
     renderActiveChatMessages();
     updateComposerState();
-    elements.userSidebar.classList.remove('is-open');
+    closeSidebar();
     elements.messageInput.focus();
 }
 
@@ -1021,7 +1023,7 @@ function selectPrivateConversation(nickname) {
     renderActiveChatShell();
     renderActiveChatMessages();
     updateComposerState();
-    elements.userSidebar.classList.remove('is-open');
+    closeSidebar();
     elements.messageInput.focus();
 }
 
@@ -1037,7 +1039,7 @@ function selectGroup(group) {
     renderActiveChatShell();
     renderActiveChatMessages();
     updateComposerState();
-    elements.userSidebar.classList.remove('is-open');
+    closeSidebar();
     elements.messageInput.focus();
 }
 
@@ -1927,10 +1929,27 @@ function setupNavigation() {
 /**
  * Configura el botón hamburguesa para móviles.
  */
+const _sidebarBackdrop = document.getElementById('sidebarBackdrop');
+
+function openSidebar() {
+    elements.userSidebar.classList.add('is-open');
+    _sidebarBackdrop?.classList.add('is-visible');
+}
+
+function closeSidebar() {
+    elements.userSidebar.classList.remove('is-open');
+    _sidebarBackdrop?.classList.remove('is-visible');
+}
+
 function setupSidebarToggle() {
     elements.sidebarToggle.addEventListener('click', () => {
-        elements.userSidebar.classList.toggle('is-open');
+        if (elements.userSidebar.classList.contains('is-open')) {
+            closeSidebar();
+        } else {
+            openSidebar();
+        }
     });
+    _sidebarBackdrop?.addEventListener('click', closeSidebar);
 }
 
 /**

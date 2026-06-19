@@ -10,7 +10,8 @@
     "dev:server2": "cross-env HOST=0.0.0.0 PORT=3001 SERVER_ID=server-2 node server.js",
     "test:100": "node tests/load-test-100.js",
     "check:sensitive": "node scripts/check-git-sensitive-files.js",
-    "setup:hooks": "node scripts/setup-git-hooks.js"
+    "setup:hooks": "node scripts/setup-git-hooks.js",
+    "moderation:import": "node scripts/import-moderation-terms.js"
   },
   "keywords": [
     "websocket",
