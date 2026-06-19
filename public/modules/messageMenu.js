@@ -1,8 +1,9 @@
 // ── REACCIONES (localStorage + sincronización en tiempo real) ─────────────
+import { isMobile, attachLongPress } from './mobileActions.js';
+
 const REACTIONS_KEY = 'ola_reactions';
 const QUICK_REACTIONS = ['👍', '❤️', '😂', '😮', '😢', '🙏'];
 let currentOverlay = null;
-let longPressTimer = null;
 
 function getStoredReactions() {
     try { return JSON.parse(localStorage.getItem(REACTIONS_KEY) || '{}'); }
@@ -112,10 +113,6 @@ function closeFloatingMessageMenu() {
         currentOverlay.remove();
         currentOverlay = null;
     }
-}
-
-function isMobile() {
-    return window.matchMedia('(max-width: 680px)').matches;
 }
 
 function getEventPoint(event, fallbackElement) {
@@ -376,16 +373,9 @@ export function buildMessageMenu(config) {
         openFloatingMessageMenu(config, getEventPoint(event, messageElement));
     });
 
-    messageElement.addEventListener('pointerdown', (event) => {
-        if (!isMobile()) return;
-        clearTimeout(longPressTimer);
-        longPressTimer = setTimeout(() => {
-            openFloatingMessageMenu(config, getEventPoint(event, messageElement));
-        }, 560);
-    });
-    ['pointerup', 'pointercancel', 'pointermove', 'mouseleave'].forEach((name) => {
-        messageElement.addEventListener(name, () => clearTimeout(longPressTimer));
-    });
+    attachLongPress(messageElement, (event) => {
+        openFloatingMessageMenu(config, getEventPoint(event, messageElement));
+    }, 560);
 
     container.append(triggerBtn);
     refreshReactionBar(message.id, messageElement, config.state.selfId);

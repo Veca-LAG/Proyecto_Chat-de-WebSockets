@@ -95,7 +95,40 @@ function sanitizeText(value, maxLength) {
 
 
 const DEFAULT_FORBIDDEN_TERMS = [
-    'idiota', 'tonto', 'estupido', 'imbecil', 'stupid', 'idiot', 'fool'
+    // Español
+    'puta', 'puto', 'putas', 'putos', 'putita',
+    'mierda', 'mierdas',
+    'coño', 'cono',
+    'joder', 'jodete',
+    'cabron', 'cabrona', 'cabrón', 'cabrones',
+    'culo', 'culos',
+    'gilipollas',
+    'hostia', 'hostias',
+    'pendejo', 'pendeja', 'pendejos',
+    'chingada', 'chingar', 'chingao', 'chingon',
+    'verga', 'vergon',
+    'pinche', 'pinches',
+    'culero', 'culera',
+    'marica', 'maricon', 'maricón',
+    'polla', 'pollas',
+    'follar', 'folla',
+    'carajo', 'caracho',
+    'idiota', 'idiotas',
+    'tonto', 'tonta', 'tontos',
+    'estupido', 'estupida', 'estúpido',
+    'imbecil', 'imbécil',
+    'hdp', 'hjdp',
+    // Inglés
+    'stupid', 'idiot', 'fool',
+    'bitch', 'bitches',
+    'fuck', 'fucking', 'fucker',
+    'shit', 'shits',
+    'asshole', 'ass',
+    'bastard', 'bastards',
+    'damn', 'crap',
+    'dick', 'cock', 'cunt',
+    'whore', 'slut',
+    'nigger', 'nigga',
 ];
 
 function normalizeForModeration(text) {

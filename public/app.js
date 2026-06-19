@@ -2,10 +2,12 @@ import { sendPrivate } from './modules/private.js';
 import { validateLogin, validateRegister } from './modules/login.js';
 import { getStoredSession, saveSession, clearSession, hasValidStoredSession } from './modules/session.js';
 import { setupTypingEvents, handleTypingStatus, clearTypingIndicator } from './modules/typing.js';
-import { initEmojiPicker } from './emoji/picker.js';
 import { initNotify, playNotify } from './sounds/notify.js';
 import { buildMessageMenu, startInlineEdit, addEditedTag, refreshReactionBar, showMiniToast, applyIncomingReaction, applyReactionSnapshot } from './modules/messageMenu.js';
 import { setReplyingTo, clearReplyingTo, renderReplyQuote } from './modules/messageReply.js';
+import { initMessageActions, getDeletedForMe, showDeleteDialog, markMessageDeletedEverywhere } from './modules/messageActions.js';
+import { setupEmojiPicker } from './modules/emojiPicker.js';
+import { setupModerationUI, updateCensorshipLabel } from './modules/moderationSettings.js';
 
 // ── SPLASH SCREEN ──────────────────────────────────────────────────────────
 (function initSplash() {
@@ -42,16 +44,6 @@ const RECONNECT_MAX_DELAY = 5000;
 const MAX_NICKNAME_LENGTH = 20;
 const MAX_MESSAGE_LENGTH = 300;
 const MAX_GROUP_NAME_LENGTH = 40;
-const DELETED_FOR_ME_KEY = 'ola_deleted_for_me';
-
-function getDeletedForMe() {
-    try { return new Set(JSON.parse(localStorage.getItem(DELETED_FOR_ME_KEY) || '[]')); }
-    catch { return new Set(); }
-}
-function saveDeletedForMe(ids) {
-    localStorage.setItem(DELETED_FOR_ME_KEY, JSON.stringify([...ids]));
-}
-
 const SECTION_CONFIG = {
     global: {
         title: 'Foro Global',
@@ -706,7 +698,7 @@ function handleServerMessage(rawMessage) {
             break;
         case 'censorship_updated':
             state.censorshipEnabled = Boolean(payload.enabled);
-            updateCensorshipButton();
+            updateCensorshipLabel(elements.toggleCensorshipButton, state.censorshipEnabled);
             showMiniToast(state.censorshipEnabled ? 'Censura activada' : 'Censura desactivada');
             break;
         case 'group_msg':
@@ -761,6 +753,11 @@ function setActiveSection(section, openDefault = true) {
     renderActiveChatShell();
     renderActiveChatMessages();
     updateComposerState();
+
+    // En móvil, abre el sidebar al cambiar de sección para ver la lista
+    if (window.matchMedia('(max-width: 860px)').matches && section !== 'global') {
+        elements.userSidebar.classList.add('is-open');
+    }
 }
 
 /**
@@ -976,15 +973,16 @@ function createListItem({ avatar, title, subtitle, active = false, disabled = fa
  */
 function selectGlobalChat() {
     delete state.unreadCounts['global'];
-    saveUnreadCounts(); 
+    saveUnreadCounts();
     state.activeSection = 'global';
     state.activeChat = { type: 'global', id: 'global', name: 'Foro Global' };
     renderNavigation();
     renderChatList();
     renderActiveChatShell();
     renderActiveChatMessages();
-    renderProfileUsers();      // ✨ AÑADIR: Dibuja la lista del panel derecho inmediatamente al entrar
+    renderProfileUsers();
     updateComposerState();
+    elements.userSidebar.classList.remove('is-open');
 }
 
 /**
@@ -1023,6 +1021,7 @@ function selectPrivateConversation(nickname) {
     renderActiveChatShell();
     renderActiveChatMessages();
     updateComposerState();
+    elements.userSidebar.classList.remove('is-open');
     elements.messageInput.focus();
 }
 
@@ -1031,13 +1030,14 @@ function selectPrivateConversation(nickname) {
  * @param {{id:string,name:string}} group Grupo seleccionado.
  */
 function selectGroup(group) {
-    delete state.unreadCounts[`group:${group.id}`]; 
+    delete state.unreadCounts[`group:${group.id}`];
     saveUnreadCounts();
     state.activeChat = { type: 'group', id: group.id, name: group.name };
     renderChatList();
     renderActiveChatShell();
     renderActiveChatMessages();
     updateComposerState();
+    elements.userSidebar.classList.remove('is-open');
     elements.messageInput.focus();
 }
 
@@ -1389,180 +1389,7 @@ function renderMessage(message) {
     scrollToLastMessage();
 }
 
-/**
- * Solicita eliminar un mensaje privado: confirma, notifica al servidor y borra localmente.
- * @param {string} messageId Id del mensaje a eliminar.
- * @param {HTMLElement} [targetElement] Elemento DOM del mensaje por si no tiene ID aún.
- */
-// ── SISTEMA DE ELIMINACIÓN ESTILO WHATSAPP ──────────────────────────────
-
-function showDeleteDialog(message, messageElement, messageKind = 'private', groupId = null, isOwn = false) {
-    const messageId = message?.id;
-    const messageText = message?.text || '';
-
-    const overlay = document.createElement('div');
-    overlay.className = 'msg-delete-overlay';
-
-    const sheet = document.createElement('div');
-    sheet.className = 'msg-delete-sheet';
-
-    const title = document.createElement('h2');
-    title.className = 'msg-delete-title';
-    title.textContent = '¿Deseas eliminar este mensaje?';
-    sheet.appendChild(title);
-
-    if (messageText) {
-        const preview = document.createElement('div');
-        preview.className = 'msg-delete-preview';
-        const label = document.createElement('p');
-        label.className = 'msg-delete-preview-label';
-        label.textContent = message.from || message.nickname || 'Mensaje';
-        const text = document.createElement('p');
-        text.className = 'msg-delete-preview-text';
-        text.textContent = messageText;
-        preview.append(label, text);
-        sheet.appendChild(preview);
-    }
-
-    function makeBtn(label, cls, onClick) {
-        const btn = document.createElement('button');
-        btn.type = 'button';
-        btn.className = `msg-delete-btn ${cls}`;
-        btn.textContent = label;
-        btn.addEventListener('click', () => { overlay.remove(); onClick(); });
-        return btn;
-    }
-
-    if (isOwn && !message.deletedForAll) {
-        sheet.appendChild(makeBtn('Eliminar para todos', 'for-all', () => {
-            _deleteForAll(messageId, messageElement, messageKind, groupId);
-        }));
-    }
-
-    sheet.appendChild(makeBtn('Eliminar para mí', 'for-me', () => {
-        _deleteForMe(messageId, messageElement, messageKind);
-    }));
-    sheet.appendChild(makeBtn('Cancelar', 'cancel', () => {}));
-
-    overlay.appendChild(sheet);
-    document.body.appendChild(overlay);
-    overlay.addEventListener('click', (e) => { if (e.target === overlay) overlay.remove(); });
-}
-
-function _deleteForAll(messageId, messageElement, messageKind = 'private', groupId = null) {
-    if (!messageId) return;
-    if (messageKind === 'global') {
-        sendJson({ type: 'delete_global_message', payload: { id: messageId }, timestamp: new Date().toISOString() });
-    } else if (messageKind === 'group') {
-        sendJson({ type: 'delete_group_message', payload: { id: messageId, groupId }, timestamp: new Date().toISOString() });
-    } else {
-        sendJson({ type: 'delete_private_message', payload: { id: messageId }, timestamp: new Date().toISOString() });
-    }
-}
-
-function _deleteForMe(messageId, messageElement, messageKind = 'private') {
-    if (messageElement) {
-        messageElement.remove();
-    } else if (messageId) {
-        const el = elements.messages.querySelector(`[data-message-id="${messageId}"]`);
-        if (el) el.remove();
-    }
-
-    if (messageId) {
-        const deleted = getDeletedForMe();
-        deleted.add(messageId);
-        saveDeletedForMe(deleted);
-    }
-
-    showUndoToast(() => {
-        if (messageId) {
-            const deleted = getDeletedForMe();
-            deleted.delete(messageId);
-            saveDeletedForMe(deleted);
-        }
-        renderActiveChatMessages();
-        applyConversationSearch();
-    });
-}
-
-function markMessageDeletedEverywhere(id, deletedBy) {
-    if (!id) return;
-
-    const replacementText = deletedBy === state.selfId ? 'Eliminaste este mensaje' : 'Se eliminó este mensaje';
-    const el = elements.messages.querySelector(`[data-message-id="${id}"]`);
-    if (el) {
-        el.classList.add('message-is-deleted');
-        const contentEl = el.querySelector('.message-content');
-        if (contentEl) {
-            contentEl.textContent = replacementText;
-            contentEl.dataset.rawText = replacementText;
-            contentEl.classList.add('message-deleted');
-        }
-    }
-
-    const apply = (msg) => {
-        if (!msg || msg.id !== id) return;
-        msg.deletedForAll = true;
-        msg.deletedBy = deletedBy;
-        msg.text = replacementText;
-    };
-
-    state.globalMessages.forEach(apply);
-    Object.values(state.privateConversations).forEach((conv) => (conv.messages || []).forEach(apply));
-    state.groups.forEach((group) => (group.history || []).forEach(apply));
-    saveLocalState();
-}
-
-let _undoToastTimer = null;
-let _currentUndoToast = null;
-
-function showUndoToast(onUndo) {
-    if (_currentUndoToast) {
-        clearTimeout(_undoToastTimer);
-        _currentUndoToast.remove();
-        _currentUndoToast = null;
-    }
-
-    const toast = document.createElement('div');
-    toast.className = 'undo-toast';
-
-    const textSpan = document.createElement('span');
-    textSpan.className = 'undo-toast-text';
-    textSpan.textContent = 'Mensaje eliminado';
-
-    const undoBtn = document.createElement('button');
-    undoBtn.type = 'button';
-    undoBtn.className = 'undo-btn';
-    undoBtn.textContent = 'Deshacer';
-
-    const closeBtn = document.createElement('button');
-    closeBtn.type = 'button';
-    closeBtn.className = 'undo-toast-close';
-    closeBtn.setAttribute('aria-label', 'Cerrar');
-    closeBtn.textContent = '✕';
-
-    const progress = document.createElement('span');
-    progress.className = 'undo-toast-progress';
-
-    toast.append(textSpan, undoBtn, closeBtn, progress);
-    document.body.appendChild(toast);
-    _currentUndoToast = toast;
-
-    requestAnimationFrame(() => requestAnimationFrame(() => toast.classList.add('show')));
-
-    function dismiss() {
-        clearTimeout(_undoToastTimer);
-        toast.classList.remove('show');
-        setTimeout(() => { if (toast.parentNode) toast.remove(); }, 350);
-        if (_currentUndoToast === toast) _currentUndoToast = null;
-    }
-
-    undoBtn.addEventListener('click', () => { dismiss(); onUndo(); });
-    closeBtn.addEventListener('click', dismiss);
-    _undoToastTimer = setTimeout(dismiss, 5000);
-}
-
-// ────────────────────────────────────────────────────────────────────────────
+// ── showDeleteDialog / markMessageDeletedEverywhere → ver modules/messageActions.js ──
 /**
  * Obtiene etiqueta del autor según tipo de mensaje.
  * @param {object} message Mensaje a mostrar.
@@ -2225,22 +2052,7 @@ function checkInviteToken() {
 }
 
 
-function updateCensorshipButton() {
-    if (!elements.toggleCensorshipButton) return;
-    elements.toggleCensorshipButton.textContent = state.censorshipEnabled
-        ? 'Censura: activada'
-        : 'Censura: desactivada';
-}
-
-function toggleCensorshipPreference() {
-    state.censorshipEnabled = !state.censorshipEnabled;
-    updateCensorshipButton();
-    sendJson({
-        type: 'toggle_censorship',
-        payload: { enabled: state.censorshipEnabled },
-        timestamp: new Date().toISOString()
-    });
-}
+// updateCensorshipButton / toggleCensorshipPreference → ver modules/moderationSettings.js
 
 /**
  * Inicializa eventos principales de la aplicación.
@@ -2256,10 +2068,14 @@ function initApp() {
     renderActiveChatShell();
     updateComposerState();
 
-    initEmojiPicker({
-        button: elements.emojiButton,
-        picker: elements.emojiPicker,
-        input: elements.messageInput
+    setupEmojiPicker(elements);
+
+    initMessageActions({
+        state,
+        sendJson,
+        renderActiveChatMessages,
+        applyConversationSearch,
+        saveLocalState
     });
 
     setupTypingEvents({
@@ -2288,8 +2104,7 @@ function initApp() {
     elements.closeConversationSearch.addEventListener('click', clearConversationSearch);
     elements.conversationSearchInput.addEventListener('input', applyConversationSearch);
     elements.deleteConversationButton.addEventListener('click', deleteActiveConversation);
-    elements.toggleCensorshipButton?.addEventListener('click', toggleCensorshipPreference);
-    updateCensorshipButton();
+    setupModerationUI(elements, state, sendJson);
     document.addEventListener('click', handleDocumentClick);
 
     document.getElementById('closeAddMembersButton').addEventListener('click', () => {
