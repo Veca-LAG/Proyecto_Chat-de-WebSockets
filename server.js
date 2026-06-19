@@ -100,7 +100,8 @@ const MODERATION_RELOAD_EVENT = 'moderation_terms_updated';
 const FALLBACK_FORBIDDEN_TERMS = [
     'puta', 'puto', 'mierda', 'cabron', 'cabrón', 'pendejo', 'pendeja',
     'chingada', 'chingar', 'verga', 'pinche', 'culero', 'idiota',
-    'imbecil', 'imbécil', 'estupido', 'estúpido', 'fuck', 'shit', 'bitch'
+    'imbecil', 'imbécil', 'estupido', 'estúpido', 'fuck', 'shit', 'bitch',
+    'perra', 'perro', 'mensa', 'menso', 'malcriada', 'malcriado', 'invesil'
 ];
 
 let moderationCache = {

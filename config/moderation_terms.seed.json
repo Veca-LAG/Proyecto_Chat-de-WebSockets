@@ -1,5 +1,44 @@
 [
   {
+    "term": "perra",
+    "language": "es",
+    "country_code": "ALL",
+    "severity": "medium",
+    "category": "insult",
+    "source": "manual",
+    "active": true,
+    "generate_gender_variants": true
+  },
+  {
+    "term": "mensa",
+    "language": "es",
+    "country_code": "ALL",
+    "severity": "medium",
+    "category": "insult",
+    "source": "manual",
+    "active": true,
+    "generate_gender_variants": true
+  },
+  {
+    "term": "malcriada",
+    "language": "es",
+    "country_code": "ALL",
+    "severity": "low",
+    "category": "insult",
+    "source": "manual",
+    "active": true,
+    "generate_gender_variants": true
+  },
+  {
+    "term": "invesil",
+    "language": "es",
+    "country_code": "ALL",
+    "severity": "medium",
+    "category": "insult",
+    "source": "manual",
+    "active": true
+  },
+  {
     "term": "estupido",
     "language": "es",
     "country_code": "ALL",
