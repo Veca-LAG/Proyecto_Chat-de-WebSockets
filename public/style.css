@@ -929,12 +929,24 @@ input:disabled {
 
 .login-brand-name {
     margin: 0;
-    font-size: 1.7rem;
-    font-weight: 800;
-    color: #ffffff;
+    font-size: 1.8rem; /* Lo subimos un pixelito para darle más presencia */
+    font-weight: 800; /* Mantenemos este grosor para que retenga el color */
     letter-spacing: -0.02em;
     font-family: 'Comfortaa', system-ui, sans-serif;
     position: relative;
+
+    /* 🎨 EL DEGRADADO DE TU MARCA */
+    background: linear-gradient(
+        135deg, 
+        #3b42e4 0%,   
+        #2a76f4 35%,  
+        #00c3da 75%,  
+        #01e2c7 100%  
+    );
+    -webkit-background-clip: text;
+    background-clip: text;
+    -webkit-text-fill-color: transparent;
+
 }
 
 /* Cuerpo del formulario */
