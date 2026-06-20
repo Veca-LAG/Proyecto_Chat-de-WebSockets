@@ -50,17 +50,17 @@ const SECTION_CONFIG = {
     global: {
         title: 'Foro Global',
         subtitle: 'Canal abierto para todos los usuarios conectados.',
-        avatar: '🌐'
+        avatar: '#'
     },
     private: {
         title: 'Privados',
         subtitle: '',
-        avatar: '👤'
+        avatar: '@'
     },
     communities: {
         title: 'Comunidades',
         subtitle: '',
-        avatar: '👥'
+        avatar: '#'
     }
 };
 
@@ -1148,10 +1148,10 @@ function renderActiveChatShell() {
     }
 
     if (state.activeChat.type === 'global') {
-        elements.chatAvatar.textContent = '🌐';
+        elements.chatAvatar.textContent = '#';
         elements.chatTitle.textContent = 'Foro Global';
         elements.chatSubtitle.textContent = 'Todos los usuarios conectados pueden leer y enviar mensajes.';
-        elements.profileAvatar.textContent = '🌐';
+        elements.profileAvatar.textContent = '#';
         elements.profileName.textContent = 'Foro Global';
         elements.profileStatus.textContent = `● ${state.users.length} usuario(s) activo(s)`;
         elements.profileDescription.textContent = 'Canal público en tiempo real. El historial del servidor conserva los últimos 300 mensajes globales.';
@@ -1933,13 +1933,16 @@ function deleteActiveConversation() {
 function setupThemeToggle() {
     const savedTheme = localStorage.getItem('chat-theme') || 'dark';
     document.body.dataset.theme = savedTheme;
-    elements.themeToggle.querySelector('.rail-icon').textContent = savedTheme === 'dark' ? '☀️' : '🌙';
+    const railIcon = elements.themeToggle.querySelector('.rail-icon');
+    railIcon.querySelector('.icon-sun').style.display = savedTheme === 'dark' ? '' : 'none';
+    railIcon.querySelector('.icon-moon').style.display = savedTheme === 'dark' ? 'none' : '';
 
     elements.themeToggle.addEventListener('click', () => {
         const nextTheme = document.body.dataset.theme === 'dark' ? 'light' : 'dark';
         document.body.dataset.theme = nextTheme;
         localStorage.setItem('chat-theme', nextTheme);
-        elements.themeToggle.querySelector('.rail-icon').textContent = nextTheme === 'dark' ? '☀️' : '🌙';
+        railIcon.querySelector('.icon-sun').style.display = nextTheme === 'dark' ? '' : 'none';
+        railIcon.querySelector('.icon-moon').style.display = nextTheme === 'dark' ? 'none' : '';
     });
 }
 
@@ -2131,6 +2134,18 @@ function initApp() {
 
     elements.loginModeButton.addEventListener('click', () => setAuthMode('login'));
     elements.registerModeButton.addEventListener('click', () => setAuthMode('register'));
+
+    document.querySelectorAll('.password-toggle').forEach((btn) => {
+        btn.addEventListener('click', () => {
+            const input = document.getElementById(btn.dataset.for);
+            if (!input) return;
+            const show = input.type === 'password';
+            input.type = show ? 'text' : 'password';
+            btn.querySelector('.eye-show').style.display = show ? 'none' : '';
+            btn.querySelector('.eye-hide').style.display = show ? '' : 'none';
+            btn.setAttribute('aria-label', show ? 'Ocultar contraseña' : 'Mostrar contraseña');
+        });
+    });
     elements.logoutButton.addEventListener('click', () => {
         state.shouldReconnect = false;
         sendJson({ type: 'logout', payload: { sessionToken: state.sessionToken }, timestamp: new Date().toISOString() });
