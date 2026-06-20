@@ -1634,19 +1634,35 @@ article.message-other .message-menu-trigger {
 }
 
 .sp-brand-name {
-    color: #ffffff;
+    /* 🎨 DEGRADADO CON LOS COLORES DE LA IMAGEN */
+    background: linear-gradient(
+        135deg, 
+        #3b42e4 0%,   /* Azul violeta superior */
+        #2a76f4 35%,  /* Azul brillante intermedio */
+        #00c3da 75%,  /* Turquesa claro */
+        #01e2c7 100%  /* Aqua brillante inferior */
+    );
+    
+    /* Efecto para recortar el degradado exactamente en la silueta de Comfortaa */
+    -webkit-background-clip: text;
+    background-clip: text;
+    -webkit-text-fill-color: transparent; /* Hace transparente el color base para que se vea el fondo */
+
     font-size: clamp(4rem, 12vw, 8.8rem);
     font-weight: 10;
     letter-spacing: -1px;
     text-transform: lowercase;
     margin-bottom: 12px;
-    text-shadow: 0 4px 20px rgba(0, 0, 0, .6);
+    
+    /* Ajustamos el drop-shadow para que le dé relieve al degradado sin verse opaco */
+    filter: drop-shadow(0px 6px 20px rgba(42, 118, 244, 0.3));
+    
     opacity: 0;
     animation: spAppear 1s cubic-bezier(.25, 1, .5, 1) 2.2s forwards;
 }
 
 .sp-slogan {
-    color: #00e5ff;
+    color: #e2f1f7; /* Un blanco azulado sutil que hace resaltar el degradado de arriba */
     font-size: clamp(.9rem, 2vw, 1.4rem);
     font-weight: 500;
     letter-spacing: .5px;
