@@ -3664,3 +3664,51 @@ article.message:hover .message-menu-trigger,
         font-size: 1.1rem;
     }
 }
+/* ════════════════════════════════════════════
+   SOLUCIÓN AL LOGO PEQUEÑO Y CONTENEDOR TOSCO
+   ════════════════════════════════════════════ */
+.brand-container {
+    width: 100% !important;
+    /* Reducimos el padding al mínimo para que la caja no se vea tosca */
+    padding: 10px 10px 5px 10px !important; 
+    display: flex !important;
+    justify-content: center !important;
+    align-items: center !important;
+    box-sizing: border-box !important;
+    overflow: visible !important; /* Permite que el logo crezca sin recortarse */
+}
+
+.brand-logo-wrapper {
+    position: relative !important;
+    display: flex !important;
+    justify-content: center !important;
+    align-items: center !important;
+    width: 100% !important;
+}
+
+/* Ajuste del brillo de fondo para que combine con el nuevo tamaño */
+.brand-logo-wrapper::before {
+    content: '';
+    position: absolute;
+    width: 100px;
+    height: 40px;
+    background: radial-gradient(circle, rgba(0, 242, 254, 0.3) 0%, rgba(0,0,0,0) 70%);
+    filter: blur(8px);
+    z-index: 1;
+    pointer-events: none;
+}
+
+.brand-logo-img {
+    height: 40px !important; /* Dejamos una altura base pequeña para la caja */
+    width: auto !important;  
+    max-width: 90% !important; 
+    object-fit: contain !important; 
+    position: relative !important;
+    z-index: 2 !important;
+    
+    /* ⚡ EL TRUCO CLAVE: Forzamos el aumento de tamaño real con un scale */
+    transform: scale(2.2) !important; /* Multiplica el tamaño visual por 2.2 */
+    transform-origin: center !important; /* Crece parejo desde el centro */
+    
+    filter: drop-shadow(0px 2px 4px rgba(0, 0, 0, 0.15)) !important;
+}
