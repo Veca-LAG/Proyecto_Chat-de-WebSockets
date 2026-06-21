@@ -5,6 +5,7 @@ const { broadcastMessageLocal, sendMessageToLocalUser, loadModerationTerms } = r
 const { broadcastUserListLocal }   = require('../utils/presence');
 const { broadcastGroupListsLocal } = require('../modules/groups/groups.service');
 const { deliverTypingStatus }      = require('../modules/typing/typing.handlers');
+const { SERVER_ID }                = require('../config');
 
 async function handleClusterEvent(rawMessage) {
     let data;
@@ -13,6 +14,9 @@ async function handleClusterEvent(rawMessage) {
     } catch {
         return;
     }
+
+    // Ignorar eventos propios para evitar doble entrega
+    if (data.originServerId && data.originServerId === SERVER_ID) return;
 
     const timestamp = data.payload?.timestamp || data.emittedAt || new Date().toISOString();
 

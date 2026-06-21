@@ -20,11 +20,14 @@ const {
 } = require('./auth.repository');
 const { getUserModerationPreference } = require('../moderation/moderation.repository');
 const { sendInitialState }    = require('../messages/messages.service');
+const { broadcastGroupListsLocal } = require('../groups/groups.service');
+const { broadcastLocal } = require('../../websocket/helpers');
 const { rowToProfile, getOrCreateProfile } = require('../profiles/profiles.service');
 const {
     toPublicUser,
     markUserOnline,
-    markUserOfflineFromThisServer
+    markUserOfflineFromThisServer,
+    broadcastUserListLocal
 } = require('../../utils/presence');
 
 // ── Ciclo de vida de conexión ──────────────────────────────────────────────────
@@ -60,8 +63,11 @@ async function attachAuthenticatedUser(ws, userRow, sessionToken) {
     if (wasOfflineLocal) logEvent(`${userRow.nickname} conectado`);
 
     if (!wasOnlineGlobal) {
+        broadcastLocal({ type: 'system', payload: { text: `${userRow.nickname} se ha conectado 🟢` }, timestamp: new Date().toISOString() });
         await publishCluster({ event: 'system', payload: { text: `${userRow.nickname} se ha conectado 🟢` } });
     }
+    await broadcastUserListLocal();
+    await broadcastGroupListsLocal();
     await publishCluster({ event: 'presence_update' });
     await publishCluster({ event: 'group_lists_update' });
 }
@@ -79,8 +85,11 @@ async function detachSocket(ws, notify = true) {
             const remainingGlobalConnections = await markUserOfflineFromThisServer(user.id);
             if (notify) {
                 if (remainingGlobalConnections === 0) {
+                    broadcastLocal({ type: 'system', payload: { text: `${user.nickname} se ha desconectado 🔴` }, timestamp: new Date().toISOString() });
                     await publishCluster({ event: 'system', payload: { text: `${user.nickname} se ha desconectado 🔴` } });
                 }
+                await broadcastUserListLocal();
+                await broadcastGroupListsLocal();
                 await publishCluster({ event: 'presence_update' });
                 await publishCluster({ event: 'group_lists_update' });
                 logEvent(`${user.nickname} desconectado`);

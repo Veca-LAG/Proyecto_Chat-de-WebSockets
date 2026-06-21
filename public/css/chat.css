@@ -1,0 +1,278 @@
+/* ══ ÁREA DE CHAT — PANEL, CABECERA, MENSAJES, COMPOSITOR ════════════════════ */
+
+/* ── Panel de chat ────────────────────────────────────────────────────────────── */
+.chat-panel {
+    position: relative;
+    z-index: 1;
+    display: grid;
+    grid-template-rows: auto auto 1fr auto auto;
+    min-width: 0;
+    overflow: hidden;
+    background: var(--chat-bg);
+}
+
+/* ── Cabecera ────────────────────────────────────────────────────────────────── */
+.chat-header {
+    position: relative;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 1rem;
+    min-height: 74px;
+    padding: 0.85rem 1rem;
+    background: rgba(255, 255, 255, 0.76);
+    backdrop-filter: blur(14px) saturate(160%);
+    -webkit-backdrop-filter: blur(14px) saturate(160%);
+    border-bottom: 1px solid var(--color-border);
+}
+
+body[data-theme='dark'] .chat-header {
+    background: rgba(22, 24, 29, 0.76);
+}
+
+.sidebar-toggle {
+    display: none;
+}
+
+.chat-heading {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    min-width: 0;
+    flex: 1;
+}
+
+.chat-avatar {
+    position: relative;
+    width: 46px;
+    height: 46px;
+    border-radius: 50%;
+    font-size: 1.05rem;
+}
+
+.chat-heading h2,
+.chat-heading p {
+    overflow: hidden;
+    margin: 0;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.chat-heading h2 {
+    max-width: 42vw;
+    font-size: 1.07rem;
+}
+
+.chat-heading p {
+    max-width: 48vw;
+    margin-top: 0.2rem;
+    color: var(--text-muted);
+    font-size: 0.86rem;
+}
+
+.chat-controls {
+    position: relative;
+    display: flex;
+    align-items: center;
+    gap: 0.45rem;
+}
+
+.chat-menu {
+    right: 0;
+}
+
+/* ── Barra de búsqueda en conversación ───────────────────────────────────────── */
+.conversation-search {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) 42px;
+    gap: 0.5rem;
+    padding: 0.7rem 1rem;
+    background: var(--bg-secondary);
+    border-bottom: 1px solid var(--color-border);
+}
+
+/* ── Panel de mensajes ───────────────────────────────────────────────────────── */
+.messages-panel {
+    display: flex;
+    flex-direction: column;
+    gap: 0;
+    min-height: 0;
+    padding: 1rem clamp(1rem, 3vw, 2.5rem);
+    overflow-y: auto;
+    background:
+        radial-gradient(circle at 20% 20%, rgba(88, 101, 242, 0.08), transparent 28%),
+        radial-gradient(circle at 80% 10%, rgba(35, 165, 90, 0.08), transparent 26%),
+        var(--chat-bg);
+}
+
+/* ── Indicador de escritura ──────────────────────────────────────────────────── */
+.typing-indicator {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    min-height: 1.5rem;
+    margin: 0;
+    padding: 0 1.1rem 0.35rem;
+    color: var(--text-muted);
+    font-size: 0.9rem;
+}
+
+.typing-indicator-bounce {
+    display: inline-flex;
+    align-items: center;
+    gap: 3px;
+    height: 100%;
+}
+
+.typing-indicator-bounce span {
+    width: 5px;
+    height: 5px;
+    background-color: var(--text-muted);
+    border-radius: 50%;
+    display: inline-block;
+    animation: bounceTyping 1.4s infinite ease-in-out both;
+}
+
+.typing-indicator-bounce span:nth-child(1) { animation-delay: -0.32s; }
+.typing-indicator-bounce span:nth-child(2) { animation-delay: -0.16s; }
+
+@keyframes bounceTyping {
+    0%, 80%, 100% {
+        transform: scale(0.6) translateY(0);
+        opacity: 0.5;
+    }
+    40% {
+        transform: scale(1.1) translateY(-4px);
+        opacity: 1;
+    }
+}
+
+/* ── Formulario de mensaje ───────────────────────────────────────────────────── */
+.message-form {
+    position: relative;
+    display: grid;
+    grid-template-columns: 42px minmax(0, 1fr) 46px;
+    align-items: center;
+    gap: 0.6rem;
+    padding: 0.85rem 1rem 1rem;
+    background: var(--bg-secondary);
+    border-top: 1px solid var(--color-border);
+}
+
+.message-form input {
+    width: 100%;
+    min-height: 46px;
+    padding: 0 1rem;
+    color: var(--text-primary);
+    background: var(--bg-tertiary);
+    border: 1px solid var(--color-border);
+    border-radius: 999px;
+    outline: none;
+}
+
+.message-form input:focus,
+.auth-card input:focus,
+.group-card input:focus,
+.search-box:focus-within {
+    border-color: var(--color-primary);
+    box-shadow: 0 0 0 3px rgba(88, 101, 242, 0.16);
+}
+
+.send-icon-button {
+    color: #ffffff;
+    background: var(--color-primary);
+    border-color: var(--color-primary);
+}
+
+/* ── Slot de respuesta (barra de cita encima del formulario) ─────────────────── */
+.reply-composer-slot {
+    background: var(--bg-secondary);
+    border-top: 1px solid var(--color-border);
+}
+
+/* ── Barra de vista previa de respuesta (WhatsApp-style) ─────────────────────── */
+.reply-preview-bar {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    margin: 0.65rem 1rem 0;
+    padding: 0.65rem 0.8rem;
+    background: var(--bg-tertiary);
+    border: 1px solid var(--color-border);
+    border-left: 4px solid #25d366;
+    border-radius: 14px;
+    box-shadow: 0 8px 22px rgba(0, 0, 0, 0.12);
+    animation: replyBarIn 0.18s ease;
+}
+
+@keyframes replyBarIn {
+    from { opacity: 0; transform: translateY(6px); }
+    to   { opacity: 1; transform: translateY(0); }
+}
+
+.reply-preview-line {
+    width: 0;
+    height: 34px;
+}
+
+.reply-preview-content {
+    display: grid;
+    gap: 0.12rem;
+    min-width: 0;
+    flex: 1;
+}
+
+.reply-preview-name {
+    color: #25d366;
+    font-size: 0.82rem;
+    font-weight: 900;
+}
+
+.reply-preview-text {
+    overflow: hidden;
+    color: var(--text-muted);
+    font-size: 0.86rem;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.reply-preview-close {
+    display: grid;
+    place-items: center;
+    width: 34px;
+    height: 34px;
+    color: var(--text-muted);
+    background: transparent;
+    border: 0;
+    border-radius: 50%;
+    font-size: 1.2rem;
+}
+
+.reply-preview-close:hover {
+    background: rgba(255, 255, 255, 0.08);
+}
+
+/* ── Selector de emojis ──────────────────────────────────────────────────────── */
+.emoji-picker {
+    position: absolute;
+    left: 1rem;
+    bottom: 4.7rem;
+    z-index: 25;
+    display: grid;
+    grid-template-columns: repeat(6, 2.2rem);
+    gap: 0.35rem;
+    padding: 0.75rem;
+    background: var(--bg-elevated);
+    border: 1px solid var(--color-border);
+    border-radius: 16px;
+    box-shadow: var(--shadow-card);
+}
+
+.emoji-picker button,
+.emoji-option {
+    width: 2.2rem;
+    height: 2.2rem;
+    background: var(--bg-tertiary);
+    border: 0;
+    border-radius: 10px;
+}

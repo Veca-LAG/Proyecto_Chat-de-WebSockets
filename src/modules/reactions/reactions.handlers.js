@@ -2,9 +2,10 @@
 
 const pool              = require('../../db/pool');
 const { sanitizeText }  = require('../../utils/sanitize');
-const { sendJson }      = require('../../websocket/helpers');
+const { sendJson, broadcastLocal }      = require('../../websocket/helpers');
 const { publishCluster }= require('../../redis/publisher');
 const { users }         = require('../../websocket/state');
+const { sendMessageToLocalUser } = require('../moderation/moderation.service');
 
 async function getReactionSnapshot(messageId) {
     const result = await pool.query(
@@ -51,13 +52,19 @@ async function handleReactMessage(ws, payload) {
     const reactPayload = { messageId, emoji, userId: user.id, action, kind, reactions };
 
     if (kind === 'global') {
+        broadcastLocal({ type: 'message_reaction', payload: reactPayload, timestamp: new Date().toISOString() });
         await publishCluster({ event: 'message_reaction', payload: reactPayload });
     } else if (kind === 'private') {
-        await publishCluster({ event: 'message_reaction', payload: { ...reactPayload, targetIds: [user.id, targetId].filter(Boolean) } });
+        const targetIds = [user.id, targetId].filter(Boolean);
+        const payloadWithTargets = { ...reactPayload, targetIds };
+        targetIds.forEach((uid) => sendMessageToLocalUser(uid, 'message_reaction', payloadWithTargets, new Date().toISOString()));
+        await publishCluster({ event: 'message_reaction', payload: payloadWithTargets });
     } else if (kind === 'group' && groupId) {
         const membersResult = await pool.query('SELECT user_id FROM group_members WHERE group_id = $1', [groupId]);
         const memberIds     = membersResult.rows.map((r) => r.user_id);
-        await publishCluster({ event: 'message_reaction', payload: { ...reactPayload, memberIds } });
+        const payloadWithMembers = { ...reactPayload, memberIds };
+        memberIds.forEach((uid) => sendMessageToLocalUser(uid, 'message_reaction', payloadWithMembers, new Date().toISOString()));
+        await publishCluster({ event: 'message_reaction', payload: payloadWithMembers });
     }
 }
 

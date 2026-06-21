@@ -1,17 +1,12 @@
 'use strict';
 
-const pool              = require('../../db/pool');
-const { sanitizeText }  = require('../../utils/sanitize');
+const pool                  = require('../../db/pool');
 const { broadcastLocal, sendToLocalUser } = require('../../websocket/helpers');
-const { publishCluster }= require('../../redis/publisher');
-const { users }         = require('../../websocket/state');
+const { publishCluster }    = require('../../redis/publisher');
 
-async function handleTyping(ws, payload) {
-    const user = users.get(ws);
-    if (!user?.nickname) return;
-
+async function broadcastTyping(user, payload, connectionId) {
     const chatType = ['global', 'private', 'group'].includes(payload.chatType) ? payload.chatType : 'global';
-    const targetId = sanitizeText(payload.targetId || '', 80);
+    const targetId = String(payload.targetId || '').slice(0, 80);
 
     const typingPayload = {
         fromId:    user.id,
@@ -21,12 +16,12 @@ async function handleTyping(ws, payload) {
         targetId:  chatType === 'global' ? 'global' : targetId
     };
 
-    await deliverTypingStatus(typingPayload, ws.connectionId);
+    await deliverTypingStatus(typingPayload, connectionId);
     await publishCluster({
         event: 'typing_status',
         payload: typingPayload,
-        originUserId:     user.id,
-        originConnectionId: ws.connectionId
+        originUserId:       user.id,
+        originConnectionId: connectionId
     });
 }
 
@@ -44,12 +39,14 @@ async function deliverTypingStatus(payload, originConnectionId = null) {
     }
 
     if (payload.chatType === 'group') {
-        const members = await pool.query('SELECT user_id FROM group_members WHERE group_id = $1', [payload.targetId]);
+        const members = await pool.query(
+            `SELECT user_id FROM group_members WHERE group_id = $1`, [payload.targetId]
+        );
         members.rows
-            .map((row) => row.user_id)
-            .filter((memberId) => memberId !== payload.fromId)
-            .forEach((memberId) => sendToLocalUser(memberId, message));
+            .map((r) => r.user_id)
+            .filter((id) => id !== payload.fromId)
+            .forEach((id) => sendToLocalUser(id, message));
     }
 }
 
-module.exports = { handleTyping, deliverTypingStatus };
+module.exports = { broadcastTyping, deliverTypingStatus };

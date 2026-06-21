@@ -1,0 +1,99 @@
+// Estado compartido y referencias DOM — importado por todos los módulos de la app
+
+export const state = {
+    socket: null,
+    authMode: 'login',
+    sessionToken: '',
+    nickname: '',
+    firstName: '',
+    lastName: '',
+    userCode: '',
+    selfId: null,
+    users: [],
+    groups: [],
+    globalMessages: [],
+    privateConversations: {},
+    activeSection: 'global',
+    activeChat: null,
+    reconnectAttempts: 0,
+    shouldReconnect: false,
+    replyingTo: null,
+    unreadCounts: {},
+    censorshipEnabled: true
+};
+
+export const elements = {
+    loginModal: document.getElementById('loginModal'),
+    loginForm: document.getElementById('loginForm'),
+    loginModeButton: document.getElementById('loginModeButton'),
+    registerModeButton: document.getElementById('registerModeButton'),
+    registerFields: document.getElementById('registerFields'),
+    passwordConfirmField: document.getElementById('passwordConfirmField'),
+    firstNameInput: document.getElementById('firstNameInput'),
+    lastNameInput: document.getElementById('lastNameInput'),
+    nicknameInput: document.getElementById('nicknameInput'),
+    passwordInput: document.getElementById('passwordInput'),
+    passwordConfirmInput: document.getElementById('passwordConfirmInput'),
+    authSubmitButton: document.getElementById('authSubmitButton'),
+    authHelperText: document.getElementById('authHelperText'),
+    loginDescription: document.getElementById('loginDescription'),
+    loginError: document.getElementById('loginError'),
+    connectionStatus: document.getElementById('connectionStatus'),
+    chatTitle: document.getElementById('chatTitle'),
+    chatSubtitle: document.getElementById('chatSubtitle'),
+    chatAvatar: document.getElementById('chatAvatar'),
+    messages: document.getElementById('messages'),
+    messageForm: document.getElementById('messageForm'),
+    messageInput: document.getElementById('messageInput'),
+    sendButton: document.getElementById('sendButton'),
+    chatList: document.getElementById('chatList'),
+    userSearchInput: document.getElementById('userSearchInput'),
+    themeToggle: document.getElementById('themeToggle'),
+    sidebarToggle: document.getElementById('sidebarToggle'),
+    userSidebar: document.getElementById('userSidebar'),
+    emojiButton: document.getElementById('emojiButton'),
+    emojiPicker: document.getElementById('emojiPicker'),
+    selfNickname: document.getElementById('selfNickname'),
+    selfAvatar: document.getElementById('selfAvatar'),
+    selfCode: document.getElementById('selfCode'),
+    logoutButton: document.getElementById('logoutButton'),
+    profileAvatar: document.getElementById('profileAvatar'),
+    profileName: document.getElementById('profileName'),
+    profileStatus: document.getElementById('profileStatus'),
+    profileDescription: document.getElementById('profileDescription'),
+    profileExtra: document.getElementById('profileExtra'),
+    navGlobal: document.getElementById('navGlobal'),
+    navPrivate: document.getElementById('navPrivate'),
+    navCommunities: document.getElementById('navCommunities'),
+    listMenuButton: document.getElementById('listMenuButton'),
+    listMenu: document.getElementById('listMenu'),
+    openGroupModalButton: document.getElementById('openGroupModalButton'),
+    groupModal: document.getElementById('groupModal'),
+    groupForm: document.getElementById('groupForm'),
+    groupNameInput: document.getElementById('groupNameInput'),
+    participantsList: document.getElementById('participantsList'),
+    groupError: document.getElementById('groupError'),
+    closeGroupModalButton: document.getElementById('closeGroupModalButton'),
+    cancelGroupButton: document.getElementById('cancelGroupButton'),
+    conversationSearchButton: document.getElementById('conversationSearchButton'),
+    conversationSearchBar: document.getElementById('conversationSearchBar'),
+    conversationSearchInput: document.getElementById('conversationSearchInput'),
+    closeConversationSearch: document.getElementById('closeConversationSearch'),
+    chatMenuButton: document.getElementById('chatMenuButton'),
+    chatMenu: document.getElementById('chatMenu'),
+    deleteConversationButton: document.getElementById('deleteConversationButton'),
+    typingIndicator: document.getElementById('typingIndicator'),
+    toggleCensorshipButton: document.getElementById('toggleCensorshipButton')
+};
+
+export const SECTION_CONFIG = {
+    global: { title: 'Foro Global', subtitle: 'Canal abierto para todos los usuarios conectados.', avatar: '#' },
+    private: { title: 'Privados', subtitle: '', avatar: '@' },
+    communities: { title: 'Comunidades', subtitle: '', avatar: '#' }
+};
+
+export const RECONNECT_BASE_DELAY = 1000;
+export const RECONNECT_MAX_DELAY  = 5000;
+export const MAX_NICKNAME_LENGTH  = 20;
+export const MAX_MESSAGE_LENGTH   = 300;
+export const MAX_GROUP_NAME_LENGTH = 40;

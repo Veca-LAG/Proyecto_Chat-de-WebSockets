@@ -1,0 +1,40 @@
+/* ══ LAYOUT PRINCIPAL — APP SHELL Y CONTENEDORES ═════════════════════════════ */
+
+.app-shell {
+    display: grid;
+    grid-template-columns: var(--rail-width) var(--sidebar-width) minmax(0, 1fr) var(--profile-width);
+    height: 100vh;
+    min-height: 0;
+    background: var(--chat-bg);
+}
+
+/* Evita desbordamiento horizontal en cualquier viewport */
+html,
+body,
+.app-shell,
+.chat-panel,
+.messages-panel {
+    max-width: 100%;
+}
+
+/* Paneles principales: sin overflow vertical propio */
+.conversation-sidebar,
+.chat-panel,
+.profile-panel {
+    min-height: 0;
+    border-right: 1px solid var(--color-border);
+}
+
+/* Sidebar: columna de 3 filas (cabecera / lista / pie) */
+.conversation-sidebar {
+    display: grid;
+    grid-template-rows: auto 1fr auto;
+    overflow: hidden;
+    background: rgba(249, 250, 252, 0.82);
+    backdrop-filter: blur(14px) saturate(150%);
+    -webkit-backdrop-filter: blur(14px) saturate(150%);
+}
+
+body[data-theme='dark'] .conversation-sidebar {
+    background: rgba(21, 23, 28, 0.82);
+}

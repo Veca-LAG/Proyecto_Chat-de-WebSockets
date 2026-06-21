@@ -1,0 +1,157 @@
+/* ══ REACCIONES Y MENÚ FLOTANTE WHATSAPP-STYLE ════════════════════════════════ */
+
+/* ── Overlay transparente que cierra el menú ────────────────────────────────── */
+.wa-menu-overlay {
+    position: fixed;
+    inset: 0;
+    z-index: 420;
+    background: transparent;
+}
+
+/* ── Menú flotante WhatsApp ──────────────────────────────────────────────────── */
+.wa-message-menu {
+    position: fixed;
+    z-index: 421;
+    min-width: 220px;
+    overflow: hidden;
+    background: #202c33;
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    border-radius: 16px;
+    box-shadow: 0 18px 50px rgba(0, 0, 0, 0.42);
+}
+
+.wa-menu-item {
+    display: flex;
+    align-items: center;
+    gap: 0.85rem;
+    width: 100%;
+    min-height: 46px;
+    padding: 0 1.05rem;
+    color: #e9edef;
+    background: transparent;
+    border: 0;
+    text-align: left;
+    font-weight: 800;
+}
+
+.wa-menu-item:hover:not(:disabled) {
+    background: rgba(255, 255, 255, 0.08);
+}
+
+.wa-menu-item:disabled {
+    opacity: 0.55;
+}
+
+.wa-menu-item.danger {
+    color: #ffb4a8;
+}
+
+.wa-menu-icon {
+    width: 1.2rem;
+    text-align: center;
+}
+
+/* ── Barra de reacciones rápidas ─────────────────────────────────────────────── */
+.wa-reaction-bar {
+    position: fixed;
+    z-index: 422;
+    display: flex;
+    align-items: center;
+    gap: 0.2rem;
+    padding: 0.35rem 0.45rem;
+    background: #202c33;
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    border-radius: 999px;
+    box-shadow: 0 14px 38px rgba(0, 0, 0, 0.42);
+}
+
+.wa-reaction-bar button {
+    display: grid;
+    place-items: center;
+    width: 38px;
+    height: 38px;
+    background: transparent;
+    border: 0;
+    border-radius: 50%;
+    font-size: 1.35rem;
+    transition: transform 0.16s ease, background 0.16s ease;
+}
+
+.wa-reaction-bar button:hover {
+    background: rgba(255, 255, 255, 0.08);
+    transform: translateY(-2px) scale(1.12);
+}
+
+/* ── Pastillas de reacciones en el mensaje ───────────────────────────────────── */
+.msg-reactions {
+    display: flex;
+    gap: 0.25rem;
+    flex-wrap: wrap;
+    margin-top: 0.35rem;
+}
+
+.msg-reaction-pill {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.2rem;
+    min-height: 24px;
+    padding: 0.12rem 0.45rem;
+    color: inherit;
+    background: rgba(255, 255, 255, 0.16);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    border-radius: 999px;
+    font-size: 0.78rem;
+    cursor: pointer;
+    transition: transform 0.15s cubic-bezier(.34,1.56,.64,1), border-color 0.12s;
+}
+
+.msg-reaction-pill:hover {
+    transform: scale(1.12);
+    border-color: var(--color-primary);
+}
+
+.msg-reaction-pill.mine {
+    background: rgba(37, 211, 102, 0.26);
+    border-color: rgba(37, 211, 102, 0.45);
+}
+
+.pill-emoji { font-size: 1rem; line-height: 1; }
+.pill-count { font-size: 0.75rem; color: var(--text-muted); font-weight: 600; }
+
+/* ── Grupo de acción: miembros del grupo ─────────────────────────────────────── */
+.group-member-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.5rem;
+}
+
+.group-mini-action {
+    padding: 0.28rem 0.55rem;
+    color: #ffffff;
+    background: var(--color-primary);
+    border: 0;
+    border-radius: 999px;
+    font-size: 0.72rem;
+    font-weight: 900;
+}
+
+.danger-button {
+    color: #fecaca !important;
+    border-color: rgba(220, 38, 38, 0.4) !important;
+}
+
+/* ── Botones de acción del grupo ─────────────────────────────────────────────── */
+.group-action-buttons {
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+    margin-top: 1rem;
+}
+
+.group-action-buttons .secondary-button {
+    width: 100%;
+    text-align: left;
+    font-size: 0.85rem;
+    padding: 0.55rem 0.9rem;
+}

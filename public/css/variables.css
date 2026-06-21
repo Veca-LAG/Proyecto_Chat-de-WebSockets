@@ -1,0 +1,112 @@
+/* ══ VARIABLES Y ESTILOS BASE ════════════════════════════════════════════════ */
+
+:root {
+    --presence-online:    #23a55a;
+    --presence-away:      #f0b232;
+    --presence-dnd:       #dc2626;
+    --presence-invisible: #80848e;
+    --bg-primary: #f4f6fb;
+    --bg-secondary: #ffffff;
+    --bg-tertiary: #eef1f7;
+    --bg-elevated: #ffffff;
+    --rail-bg: #e6eaf2;
+    --sidebar-bg: #f9fafc;
+    --chat-bg: #f3f5f8;
+    --text-primary: #172033;
+    --text-muted: #667085;
+    --text-soft: #8a94a6;
+    --color-primary: #5865f2;
+    --color-primary-dark: #4752c4;
+    --color-border: #d7dce5;
+    --color-success: #23a55a;
+    --color-danger: #dc2626;
+    --color-warning: #f59e0b;
+    --message-own: #0b846c;
+    --message-other: #ffffff;
+    --private-bg: #fff7ed;
+    --private-border: #fb923c;
+    --group-bg: #eef2ff;
+    --shadow-card: 0 18px 44px rgba(15, 23, 42, 0.16);
+    --radius-sm: 10px;
+    --radius-md: 14px;
+    --radius-lg: 18px;
+    --rail-width: 84px;
+    --sidebar-width: 332px;
+    --profile-width: 320px;
+}
+
+body[data-theme='dark'] {
+    --bg-primary: #0f1014;
+    --bg-secondary: #16181d;
+    --bg-tertiary: #20232a;
+    --bg-elevated: #252830;
+    --rail-bg: #0b0c10;
+    --sidebar-bg: #15171c;
+    --chat-bg: #101216;
+    --text-primary: #f2f3f5;
+    --text-muted: #b5bac1;
+    --text-soft: #8e95a2;
+    --color-primary: #5865f2;
+    --color-primary-dark: #4752c4;
+    --color-border: #2f333d;
+    --message-own: #0b846c;
+    --message-other: #252830;
+    --private-bg: #3a2a18;
+    --private-border: #f59e0b;
+    --group-bg: #222a44;
+    --shadow-card: 0 18px 44px rgba(0, 0, 0, 0.35);
+}
+
+* {
+    box-sizing: border-box;
+}
+
+html,
+body {
+    height: 100%;
+}
+
+body {
+    min-height: 100vh;
+    margin: 0;
+    overflow: hidden;
+    font-family: 'Inter', system-ui, -apple-system, sans-serif;
+    background: var(--bg-primary);
+    color: var(--text-primary);
+    transition: background 0.3s ease, color 0.3s ease;
+}
+
+button,
+input {
+    font: inherit;
+}
+
+button {
+    cursor: pointer;
+}
+
+button:disabled,
+input:disabled {
+    cursor: not-allowed;
+    opacity: 0.62;
+}
+
+.hidden {
+    display: none !important;
+}
+
+[hidden] {
+    display: none !important;
+}
+
+.sr-only {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    padding: 0;
+    margin: -1px;
+    overflow: hidden;
+    clip: rect(0, 0, 0, 0);
+    white-space: nowrap;
+    border: 0;
+}

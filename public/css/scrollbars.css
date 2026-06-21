@@ -1,0 +1,51 @@
+/* ══ SCROLLBARS PERSONALIZADAS ════════════════════════════════════════════════ */
+
+/* ── Chrome / Edge / Safari ─────────────────────────────────────────────────── */
+::-webkit-scrollbar {
+    width: 5px;
+    height: 5px;
+}
+
+::-webkit-scrollbar-track {
+    background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+    background: var(--color-border);
+    border-radius: 999px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+    background: var(--text-soft);
+}
+
+/* Tema oscuro — thumb con gradiente sutil */
+body[data-theme='dark'] ::-webkit-scrollbar-thumb {
+    background: linear-gradient(
+        180deg,
+        rgba(255, 255, 255, 0.18) 0%,
+        rgba(255, 255, 255, 0.10) 100%
+    );
+}
+
+body[data-theme='dark'] ::-webkit-scrollbar-thumb:hover {
+    background: linear-gradient(
+        180deg,
+        rgba(255, 255, 255, 0.32) 0%,
+        rgba(255, 255, 255, 0.20) 100%
+    );
+}
+
+body[data-theme='dark'] ::-webkit-scrollbar-track {
+    background: rgba(0, 0, 0, 0.08);
+}
+
+/* ── Firefox ─────────────────────────────────────────────────────────────────── */
+* {
+    scrollbar-width: thin;
+    scrollbar-color: var(--color-border) transparent;
+}
+
+body[data-theme='dark'] * {
+    scrollbar-color: rgba(255, 255, 255, 0.15) transparent;
+}

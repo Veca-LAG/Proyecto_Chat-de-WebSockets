@@ -1,0 +1,472 @@
+/* ══ SIDEBAR — RAIL DE NAVEGACIÓN Y LISTA DE CONVERSACIONES ══════════════════ */
+
+/* ── Rail izquierdo estilo Discord ──────────────────────────────────────────── */
+.server-rail {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 0.75rem;
+    padding: 0.85rem 0.5rem;
+    background: rgba(230, 234, 242, 0.80);
+    backdrop-filter: blur(14px) saturate(150%);
+    -webkit-backdrop-filter: blur(14px) saturate(150%);
+    border-right: 1px solid var(--color-border);
+}
+
+body[data-theme='dark'] .server-rail {
+    background: rgba(11, 12, 16, 0.80);
+}
+
+.rail-item {
+    position: relative;
+    display: grid;
+    justify-items: center;
+    gap: 0.24rem;
+    width: 100%;
+    min-height: 62px;
+    padding: 0.2rem 0.15rem;
+    color: var(--text-muted);
+    background: transparent;
+    border: 0;
+    border-radius: 16px;
+    transition: all 0.3s ease;
+}
+
+.rail-icon {
+    display: grid;
+    place-items: center;
+    width: 48px;
+    height: 48px;
+    color: var(--text-primary);
+    background: var(--bg-tertiary);
+    border: 1px solid transparent;
+    border-radius: 50%;
+    transition: all 0.3s ease;
+}
+
+.rail-label {
+    max-width: 74px;
+    overflow: hidden;
+    color: inherit;
+    font-size: 0.66rem;
+    font-weight: 800;
+    line-height: 1.05;
+    text-align: center;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.rail-item:hover .rail-icon,
+.rail-item-active .rail-icon {
+    color: #ffffff;
+    background: var(--color-primary);
+    border-radius: 16px;
+    transform: translateY(-1px);
+}
+
+.rail-item:hover,
+.rail-item-active {
+    color: var(--text-primary);
+}
+
+.rail-divider {
+    width: 38px;
+    height: 1px;
+    background: var(--color-border);
+}
+
+.rail-spacer {
+    flex: 1;
+}
+
+/* ── Búsqueda en el sidebar ──────────────────────────────────────────────────── */
+.sidebar-search {
+    position: relative;
+    padding: 1rem;
+    border-bottom: 1px solid var(--color-border);
+}
+
+.sidebar-search h1 {
+    margin: 0 0 0.75rem;
+    font-size: 1.15rem;
+    letter-spacing: 0.02em;
+}
+
+.search-actions {
+    position: relative;
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) 42px;
+    gap: 0.5rem;
+}
+
+.search-box {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    min-height: 42px;
+    padding: 0 0.85rem;
+    color: var(--text-soft);
+    background: var(--bg-tertiary);
+    border: 1px solid var(--color-border);
+    border-radius: 999px;
+}
+
+.search-box input {
+    width: 100%;
+    min-width: 0;
+    color: var(--text-primary);
+    background: transparent;
+    border: 0;
+    outline: none;
+}
+
+.search-box input::placeholder,
+.message-form input::placeholder,
+.auth-card input::placeholder,
+.group-card input::placeholder {
+    color: var(--text-soft);
+}
+
+/* ── Íconos SVG y botones de icono ──────────────────────────────────────────── */
+.icon {
+    display: block;
+    width: 20px;
+    height: 20px;
+    stroke: currentColor;
+    fill: none;
+    stroke-width: 1.5;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+    flex-shrink: 0;
+    pointer-events: none;
+}
+
+.icon-filled {
+    fill: currentColor;
+    stroke: none;
+}
+
+.rail-icon .icon {
+    width: 22px;
+    height: 22px;
+}
+
+.icon-button,
+.send-icon-button {
+    display: grid;
+    place-items: center;
+    min-width: 42px;
+    width: 42px;
+    height: 42px;
+    color: var(--text-primary);
+    background: var(--bg-tertiary);
+    border: 1px solid var(--color-border);
+    border-radius: 50%;
+    transition: all 0.3s ease;
+}
+
+.icon-button:hover,
+.send-icon-button:hover:not(:disabled) {
+    color: #ffffff;
+    background: var(--color-primary);
+    border-color: var(--color-primary);
+}
+
+/* ── Menú desplegable genérico ───────────────────────────────────────────────── */
+.dropdown-menu {
+    position: absolute;
+    z-index: 40;
+    top: calc(100% + 0.45rem);
+    right: 0;
+    min-width: 228px;
+    padding: 0.45rem;
+    background: var(--bg-elevated);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-md);
+    box-shadow: var(--shadow-card);
+}
+
+.dropdown-menu button {
+    width: 100%;
+    padding: 0.75rem 0.85rem;
+    color: var(--text-primary);
+    background: transparent;
+    border: 0;
+    border-radius: var(--radius-sm);
+    text-align: left;
+}
+
+.dropdown-menu button:hover {
+    background: var(--bg-tertiary);
+}
+
+/* ── Lista de chats ──────────────────────────────────────────────────────────── */
+.chat-list-section {
+    min-height: 0;
+    overflow: hidden;
+}
+
+.chat-list {
+    height: 100%;
+    list-style: none;
+    padding: 0.55rem 0.65rem 1rem;
+    margin: 0;
+    overflow-y: auto;
+}
+
+.chat-list-item {
+    display: flex;
+    align-items: center;
+    gap: 0.78rem;
+    width: 100%;
+    min-height: 70px;
+    margin-bottom: 0.25rem;
+    padding: 0.7rem 0.65rem;
+    color: var(--text-primary);
+    background: transparent;
+    border: 1px solid transparent;
+    border-radius: var(--radius-md);
+    text-align: left;
+    transition: all 0.3s ease;
+}
+
+.chat-list-item:hover:not(:disabled),
+.chat-list-item-active {
+    background: var(--bg-tertiary);
+    border-color: var(--color-border);
+}
+
+.chat-list-item:disabled {
+    color: var(--text-muted);
+    cursor: default;
+}
+
+/* ── Avatares compartidos ───────────────────────────────────────────────────── */
+.chat-list-avatar,
+.profile-mini-avatar,
+.chat-avatar,
+.profile-avatar-large {
+    display: grid;
+    place-items: center;
+    flex: 0 0 auto;
+    color: #ffffff;
+    background: linear-gradient(135deg, var(--color-primary), var(--message-own));
+    font-weight: 900;
+    text-transform: uppercase;
+}
+
+.chat-list-avatar {
+    position: relative;
+    width: 46px;
+    height: 46px;
+    border-radius: 50%;
+    font-size: 0.86rem;
+}
+
+.chat-list-avatar::after,
+.profile-mini-avatar::after,
+.chat-avatar::after {
+    content: '';
+    position: absolute;
+    right: 0;
+    bottom: 0;
+    width: 0.72rem;
+    height: 0.72rem;
+    background: var(--color-success);
+    border: 2px solid var(--sidebar-bg);
+    border-radius: 50%;
+}
+
+.chat-list-text {
+    display: grid;
+    gap: 0.2rem;
+    min-width: 0;
+}
+
+.chat-list-text strong,
+.chat-list-text small {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.chat-list-text strong {
+    color: inherit;
+}
+
+.chat-list-text small {
+    color: var(--text-soft);
+    font-size: 0.8rem;
+}
+
+.empty-list-text {
+    margin: 0;
+    padding: 0.8rem;
+    color: var(--text-muted);
+}
+
+/* ── Badge de mensajes no leídos en la lista ─────────────────────────────────── */
+.unread-badge {
+    display: grid;
+    place-items: center;
+    min-width: 20px;
+    height: 20px;
+    padding: 0 5px;
+    margin-left: auto;
+    flex-shrink: 0;
+    color: #ffffff;
+    background: var(--color-danger);
+    border-radius: 999px;
+    font-size: 0.72rem;
+    font-weight: 900;
+    line-height: 1;
+    animation: show-message 0.2s ease;
+}
+
+/* ── Badge de no leídos en el rail de navegación ────────────────────────────── */
+.rail-unread-badge {
+    position: absolute;
+    top: 6px;
+    right: 10px;
+    min-width: 18px;
+    height: 18px;
+    padding: 0 4px;
+    color: #ffffff;
+    background: var(--color-danger);
+    border-radius: 999px;
+    font-size: 0.68rem;
+    font-weight: 900;
+    line-height: 18px;
+    text-align: center;
+    pointer-events: none;
+    animation: show-message 0.2s ease;
+}
+
+/* ── Badge de mensaje privado ────────────────────────────────────────────────── */
+.message-private-badge {
+    font-size: 0.7rem;
+    margin-right: 4px;
+    opacity: 0.7;
+}
+
+/* ══ SISTEMA DE PERFILES — PIE DEL SIDEBAR ═══════════════════════════════════ */
+
+/* ── Avatar genérico ─────────────────────────────────────────────────────────── */
+.up-avatar {
+    position: relative;
+    display: grid;
+    place-items: center;
+    width: 40px;
+    height: 40px;
+    overflow: hidden;
+    background: var(--color-primary);
+    border-radius: 50%;
+    color: #fff;
+    font-size: 0.88rem;
+    font-weight: 900;
+    user-select: none;
+    flex-shrink: 0;
+}
+
+.up-avatar .avatar-img {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    border-radius: inherit;
+}
+
+/* ── Dot de presencia ────────────────────────────────────────────────────────── */
+.presence-dot {
+    display: inline-block;
+    width: 12px;
+    height: 12px;
+    border-radius: 50%;
+    border: 2px solid var(--bg-secondary);
+    flex-shrink: 0;
+}
+
+.presence-dot--online    { background: var(--presence-online); }
+.presence-dot--away      { background: var(--presence-away); }
+.presence-dot--dnd       { background: var(--presence-dnd); }
+.presence-dot--invisible { background: var(--presence-invisible); }
+
+/* ── Pie del sidebar ─────────────────────────────────────────────────────────── */
+.sidebar-profile {
+    display: flex;
+    align-items: center;
+    gap: 0.35rem;
+    padding: 0.55rem 0.75rem;
+    border-top: 1px solid var(--color-border);
+    background: var(--sidebar-bg);
+    flex-shrink: 0;
+}
+
+.profile-footer-trigger {
+    display: flex;
+    align-items: center;
+    gap: 0.7rem;
+    flex: 1;
+    min-width: 0;
+    padding: 0.35rem 0.45rem;
+    background: transparent;
+    border: 0;
+    border-radius: var(--radius-sm);
+    text-align: left;
+    cursor: pointer;
+    transition: background 0.14s ease;
+}
+
+.profile-footer-trigger:hover {
+    background: var(--bg-tertiary);
+}
+
+.profile-mini-avatar {
+    width: 36px;
+    height: 36px;
+    font-size: 0.78rem;
+}
+
+.profile-mini-text {
+    display: grid;
+    gap: 0.05rem;
+    flex: 1;
+    min-width: 0;
+}
+
+.profile-mini-text strong {
+    display: block;
+    overflow: hidden;
+    color: var(--text-primary);
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    font-size: 0.85rem;
+}
+
+.profile-code {
+    margin: 0;
+    overflow: hidden;
+    color: var(--text-muted);
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    font-size: 0.75rem;
+}
+
+.connection-status {
+    margin: 0;
+    font-size: 0.72rem;
+    font-weight: 700;
+}
+
+.connection-status.connected    { color: var(--presence-online); }
+.connection-status.disconnected { color: var(--color-danger); }
+.connection-status.connecting   { color: var(--presence-away); }
+
+.profile-footer-trigger .presence-dot {
+    border-color: var(--sidebar-bg);
+}
+
+.logout-button {
+    margin-left: auto;
+}

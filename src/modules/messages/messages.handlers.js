@@ -3,11 +3,11 @@
 const { randomUUID }    = require('crypto');
 const pool              = require('../../db/pool');
 const { sanitizeText }  = require('../../utils/sanitize');
-const { sendJson }      = require('../../websocket/helpers');
+const { sendJson, broadcastLocal }      = require('../../websocket/helpers');
 const { publishCluster }= require('../../redis/publisher');
 const { users }         = require('../../websocket/state');
 const { SERVER_ID, MAX_MESSAGE_LENGTH, MAX_HISTORY } = require('../../config');
-const { moderateMessageText } = require('../moderation/moderation.service');
+const { moderateMessageText, broadcastMessageLocal, sendMessageToLocalUser } = require('../moderation/moderation.service');
 const { saveModerationAudit } = require('../moderation/moderation.repository');
 const { buildReplySnapshot }  = require('./messages.service');
 const { findUserById }        = require('../auth/auth.repository');
@@ -52,6 +52,10 @@ async function handleMessage(ws, payload, timestamp) {
         );
 
         await saveModerationAudit({ messageId: message.id, userId: user.id, kind: 'global', matchedTerms: moderation.matchedTerms });
+
+        // Entrega local inmediata: no dependemos de Redis para el mismo servidor.
+        // Redis se usa solo para replicar el evento a otros servidores.
+        broadcastMessageLocal('broadcast', message, message.timestamp);
         await publishCluster({ event: 'broadcast', payload: message });
     } catch (error) {
         console.error('Error al procesar mensaje global:', error);
@@ -113,6 +117,10 @@ async function handlePrivate(ws, payload, timestamp) {
         );
 
         await saveModerationAudit({ messageId: message.id, userId: sender.id, kind: 'private', matchedTerms: moderation.matchedTerms });
+
+        // Entregar al emisor y receptor conectados a este servidor.
+        sendMessageToLocalUser(message.toId,   'private_msg', message, message.timestamp);
+        sendMessageToLocalUser(message.fromId, 'private_msg', message, message.timestamp);
         await publishCluster({
             event: 'private_msg',
             payload: message,
@@ -150,6 +158,9 @@ async function handleDeletePrivateMessage(ws, payload) {
         `UPDATE private_messages SET deleted_for_all = TRUE, deleted_by = $2, deleted_at = NOW(), text = '' WHERE id = $1`,
         [id, requester.id]
     );
+    const ts = new Date().toISOString();
+    sendMessageToLocalUser(message.to_id,   'private_delete', { id, deletedBy: requester.id }, ts);
+    sendMessageToLocalUser(message.from_id, 'private_delete', { id, deletedBy: requester.id }, ts);
     await publishCluster({
         event: 'private_delete',
         payload: { id, deletedBy: requester.id, fromId: message.from_id, toId: message.to_id },
@@ -182,6 +193,8 @@ async function handleDeleteGlobalMessage(ws, payload) {
         `UPDATE global_messages SET deleted_for_all = TRUE, deleted_by = $2, deleted_at = NOW(), text = '' WHERE id = $1`,
         [id, requester.id]
     );
+    const ts = new Date().toISOString();
+    broadcastLocal({ type: 'global_delete', payload: { id, deletedBy: requester.id }, timestamp: ts });
     await publishCluster({ event: 'global_delete', payload: { id, deletedBy: requester.id }, originConnectionId: ws.connectionId });
 }
 
@@ -207,7 +220,9 @@ async function handleEditMessage(ws, payload) {
         const censored   = moderation.textCensored;
         await pool.query('UPDATE global_messages SET text = $1, text_original = $2, text_censored = $3 WHERE id = $4 AND deleted_for_all = FALSE', [censored, newText, censored, id]);
         await saveModerationAudit({ messageId: id, userId: requester.id, kind: 'global_edit', matchedTerms: moderation.matchedTerms });
-        await publishCluster({ event: 'message_edited', payload: { id, textOriginal: newText, textCensored: censored, text: censored, kind: 'global' } });
+        const payload = { id, textOriginal: newText, textCensored: censored, text: censored, kind: 'global' };
+        broadcastMessageLocal('message_edited', payload, new Date().toISOString());
+        await publishCluster({ event: 'message_edited', payload });
 
     } else if (kind === 'private') {
         const { rows } = await pool.query('SELECT * FROM private_messages WHERE id = $1 LIMIT 1', [id]);
@@ -220,7 +235,11 @@ async function handleEditMessage(ws, payload) {
         const censored   = moderation.textCensored;
         await pool.query('UPDATE private_messages SET text = $1, text_original = $2, text_censored = $3 WHERE id = $4 AND deleted_for_all = FALSE', [censored, newText, censored, id]);
         await saveModerationAudit({ messageId: id, userId: requester.id, kind: 'private_edit', matchedTerms: moderation.matchedTerms });
-        await publishCluster({ event: 'message_edited', payload: { id, textOriginal: newText, textCensored: censored, text: censored, kind: 'private', fromId: msg.from_id, toId: msg.to_id } });
+        const payload = { id, textOriginal: newText, textCensored: censored, text: censored, kind: 'private', fromId: msg.from_id, toId: msg.to_id };
+        const ts = new Date().toISOString();
+        sendMessageToLocalUser(payload.fromId, 'message_edited', payload, ts);
+        sendMessageToLocalUser(payload.toId,   'message_edited', payload, ts);
+        await publishCluster({ event: 'message_edited', payload });
 
     } else if (kind === 'group') {
         const { rows } = await pool.query('SELECT * FROM group_messages WHERE id = $1 LIMIT 1', [id]);
@@ -234,7 +253,11 @@ async function handleEditMessage(ws, payload) {
         await pool.query('UPDATE group_messages SET text = $1, text_original = $2, text_censored = $3 WHERE id = $4 AND deleted_for_all = FALSE', [censored, newText, censored, id]);
         await saveModerationAudit({ messageId: id, userId: requester.id, kind: 'group_edit', matchedTerms: moderation.matchedTerms });
         const members = await pool.query('SELECT user_id FROM group_members WHERE group_id = $1', [msg.group_id]);
-        await publishCluster({ event: 'message_edited', payload: { id, textOriginal: newText, textCensored: censored, text: censored, kind: 'group' }, memberIds: members.rows.map((r) => r.user_id) });
+        const memberIds = members.rows.map((r) => r.user_id);
+        const payload = { id, textOriginal: newText, textCensored: censored, text: censored, kind: 'group' };
+        const ts = new Date().toISOString();
+        memberIds.forEach((memberId) => sendMessageToLocalUser(memberId, 'message_edited', payload, ts));
+        await publishCluster({ event: 'message_edited', payload, memberIds });
     }
 }
 

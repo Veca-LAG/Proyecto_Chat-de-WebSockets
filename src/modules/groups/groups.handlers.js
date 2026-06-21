@@ -9,7 +9,7 @@ const { redis }         = require('../../redis/clients');
 const { users }         = require('../../websocket/state');
 const { logEvent }      = require('../../utils/logger');
 const { MAX_MESSAGE_LENGTH, MAX_HISTORY, INVITE_SECONDS } = require('../../config');
-const { moderateMessageText } = require('../moderation/moderation.service');
+const { moderateMessageText, sendMessageToLocalUser } = require('../moderation/moderation.service');
 const { saveModerationAudit } = require('../moderation/moderation.repository');
 const { buildReplySnapshot }  = require('../messages/messages.service');
 const { getOnlineUserIds }    = require('../../utils/presence');
@@ -62,6 +62,7 @@ async function handleCreateGroup(ws, payload) {
         client.release();
     }
 
+    await broadcastGroupListsLocal();
     await publishCluster({ event: 'group_lists_update' });
     logEvent(`${creator.nickname} creó el grupo ${name}`);
 }
@@ -105,6 +106,7 @@ async function handleAddGroupMembers(ws, payload) {
         return;
     }
 
+    await broadcastGroupListsLocal();
     await publishCluster({ event: 'group_lists_update' });
 }
 
@@ -124,6 +126,7 @@ async function handlePromoteGroupAdmin(ws, payload) {
         `UPDATE group_members SET role = 'admin', hidden_for_user = FALSE WHERE group_id = $1 AND user_id = $2 AND role <> 'owner'`,
         [groupId, targetUserId]
     );
+    await broadcastGroupListsLocal();
     await publishCluster({ event: 'group_lists_update' });
 }
 
@@ -146,6 +149,7 @@ async function handleLeaveGroup(ws, payload) {
 
     await pool.query('DELETE FROM group_members WHERE group_id = $1 AND user_id = $2', [groupId, requester.id]);
     sendJson(ws, { type: 'group_deleted', payload: { groupId }, timestamp: new Date().toISOString() });
+    await broadcastGroupListsLocal();
     await publishCluster({ event: 'group_lists_update' });
 }
 
@@ -175,7 +179,11 @@ async function handleDeleteGroupEveryone(ws, payload) {
 
     const members = await pool.query('SELECT user_id FROM group_members WHERE group_id = $1', [groupId]);
     await pool.query('UPDATE groups SET deleted_at = NOW() WHERE id = $1', [groupId]);
-    await publishCluster({ event: 'group_deleted', payload: { groupId }, memberIds: members.rows.map((r) => r.user_id) });
+    const memberIds = members.rows.map((r) => r.user_id);
+    const ts = new Date().toISOString();
+    memberIds.forEach((memberId) => sendMessageToLocalUser(memberId, 'group_deleted', { groupId }, ts));
+    await broadcastGroupListsLocal();
+    await publishCluster({ event: 'group_deleted', payload: { groupId }, memberIds });
     await publishCluster({ event: 'group_lists_update' });
 }
 
@@ -237,6 +245,7 @@ async function handleJoinByInvite(ws, payload) {
         payload: { id: requester.id, nickname: requester.nickname, groupId: group.id, groupName: group.name },
         timestamp: new Date().toISOString()
     });
+    await broadcastGroupListsLocal();
     await publishCluster({ event: 'group_lists_update' });
 }
 
@@ -298,7 +307,10 @@ async function handleGroupMessage(ws, payload, timestamp) {
 
         const membersResult = await pool.query('SELECT user_id FROM group_members WHERE group_id = $1', [group.id]);
         await saveModerationAudit({ messageId: message.id, userId: sender.id, kind: 'group', matchedTerms: moderation.matchedTerms });
-        await publishCluster({ event: 'group_msg', payload: message, memberIds: membersResult.rows.map((row) => row.user_id) });
+        const memberIds = membersResult.rows.map((row) => row.user_id);
+        memberIds.forEach((memberId) => sendMessageToLocalUser(memberId, 'group_msg', message, message.timestamp));
+        await publishCluster({ event: 'group_msg', payload: message, memberIds });
+        await broadcastGroupListsLocal();
         await publishCluster({ event: 'group_lists_update' });
     } catch (error) {
         console.error('Error al procesar mensaje de grupo:', error);
@@ -334,10 +346,13 @@ async function handleDeleteGroupMessage(ws, payload) {
     );
 
     const membersResult = await pool.query('SELECT user_id FROM group_members WHERE group_id = $1', [groupId]);
+    const memberIds = membersResult.rows.map((row) => row.user_id);
+    const ts = new Date().toISOString();
+    memberIds.forEach((memberId) => sendMessageToLocalUser(memberId, 'group_delete', { id, groupId, deletedBy: requester.id }, ts));
     await publishCluster({
         event: 'group_delete',
         payload: { id, groupId, deletedBy: requester.id },
-        memberIds: membersResult.rows.map((row) => row.user_id),
+        memberIds,
         originConnectionId: ws.connectionId
     });
 }

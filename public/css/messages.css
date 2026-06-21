@@ -1,0 +1,269 @@
+/* ══ MENSAJES — BURBUJAS, SISTEMA, ANIMACIONES ═══════════════════════════════ */
+
+/* ── Burbuja base ────────────────────────────────────────────────────────────── */
+.message {
+    position: relative;
+    width: fit-content;
+    max-width: min(72%, 720px);
+    margin: 0 0 0.8rem;
+    padding: 0.72rem 0.86rem;
+    padding-right: 2.1rem;
+    color: var(--text-primary);
+    background: var(--message-other);
+    border: 1px solid var(--color-border);
+    border-radius: 18px 18px 18px 6px;
+    box-shadow: 0 8px 18px rgba(0, 0, 0, 0.08);
+    overflow: visible;
+    animation: show-message 0.18s ease-out forwards;
+}
+
+.message-own {
+    align-self: flex-end;
+    margin-left: auto;
+    color: #ffffff;
+    background: linear-gradient(135deg, var(--message-own), var(--color-primary));
+    border-color: transparent;
+    border-radius: 18px 18px 6px 18px;
+}
+
+.message-other {
+    align-self: flex-start;
+}
+
+.message-private {
+    color: var(--text-primary);
+    background: var(--private-bg);
+    border-color: var(--private-border);
+}
+
+.message-own.message-private {
+    color: #ffffff;
+    background: linear-gradient(135deg, var(--message-own), var(--color-primary));
+}
+
+.message-group {
+    background: var(--group-bg);
+}
+
+.message-own.message-group {
+    color: #ffffff;
+    background: linear-gradient(135deg, var(--message-own), #2563eb);
+}
+
+.message-historical {
+    opacity: 0.76;
+}
+
+.message-is-deleted .message-content,
+.message-deleted {
+    opacity: 0.74;
+    font-style: italic;
+}
+
+/* ── Metadatos del mensaje ───────────────────────────────────────────────────── */
+.message-meta {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 1rem;
+    margin-bottom: 0.25rem;
+    font-size: 0.78rem;
+    opacity: 0.92;
+}
+
+.message-own .message-meta {
+    color: rgba(255, 255, 255, 0.86);
+}
+
+.message p {
+    margin: 0;
+    line-height: 1.45;
+    word-break: break-word;
+}
+
+.message mark,
+.system-message mark {
+    padding: 0.08rem 0.18rem;
+    color: #111827;
+    background: #fde047;
+    border-radius: 0.25rem;
+}
+
+/* ── Mensajes de sistema y separadores ───────────────────────────────────────── */
+.system-message,
+.history-separator {
+    align-self: center;
+    width: fit-content;
+    max-width: 90%;
+    margin: 0.9rem auto;
+    padding: 0.45rem 0.75rem;
+    color: var(--text-muted);
+    background: rgba(128, 128, 128, 0.08);
+    border: 1px solid var(--color-border);
+    border-radius: 999px;
+    text-align: center;
+    font-size: 0.85rem;
+}
+
+/* ── Etiqueta de mensaje reenviado ───────────────────────────────────────────── */
+.forwarded-label {
+    margin: 0 0 0.35rem;
+    color: currentColor;
+    opacity: 0.72;
+    font-size: 0.76rem;
+    font-style: italic;
+}
+
+/* ── Cita de respuesta dentro del mensaje ───────────────────────────────────── */
+.msg-reply-quote {
+    margin: 0 0 0.45rem;
+    padding: 0.5rem 0.65rem;
+    background: rgba(0, 0, 0, 0.16);
+    border-left: 4px solid #25d366;
+    border-radius: 10px;
+}
+
+.message-own .msg-reply-quote {
+    background: rgba(0, 0, 0, 0.18);
+}
+
+.msg-reply-quote-name {
+    display: block;
+    color: #ffd166;
+    font-size: 0.78rem;
+    font-weight: 900;
+}
+
+.msg-reply-quote-text {
+    margin: 0.12rem 0 0;
+    overflow: hidden;
+    color: inherit;
+    opacity: 0.84;
+    font-size: 0.82rem;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+/* ── Edición de mensaje (inline) ─────────────────────────────────────────────── */
+.msg-edit-form {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    width: 100%;
+}
+
+.msg-edit-input {
+    width: 100%;
+    background: var(--bg-secondary);
+    border: 1.5px solid #00b4d8;
+    border-radius: 8px;
+    padding: 8px 10px;
+    font-size: 0.9rem;
+    color: var(--text-primary);
+    font-family: inherit;
+    resize: none;
+    outline: none;
+    line-height: 1.4;
+}
+
+.msg-edit-input:focus {
+    box-shadow: 0 0 0 3px rgba(0, 180, 216, 0.15);
+}
+
+.msg-edit-hint {
+    font-size: 0.72rem;
+    color: var(--text-muted);
+    margin: 0;
+}
+
+.msg-edit-actions {
+    display: flex;
+    gap: 8px;
+    justify-content: flex-end;
+}
+
+.msg-edit-cancel,
+.msg-edit-save {
+    border: none;
+    border-radius: 6px;
+    padding: 5px 14px;
+    font-size: 0.82rem;
+    cursor: pointer;
+    font-family: inherit;
+    font-weight: 600;
+    transition: background 0.12s, opacity 0.12s;
+}
+
+.msg-edit-cancel {
+    background: var(--bg-tertiary);
+    color: var(--text-muted);
+}
+
+.msg-edit-cancel:hover { opacity: .8; }
+
+.msg-edit-save {
+    background: #00b4d8;
+    color: #fff;
+}
+
+.msg-edit-save:hover { background: #009ab8; }
+
+.msg-edited-tag {
+    font-size: 0.7rem;
+    color: var(--text-muted);
+    font-style: italic;
+    margin-left: 4px;
+}
+
+/* ── Botón de menú de mensaje (trigger/chevron) ──────────────────────────────── */
+.message-menu-container {
+    position: absolute;
+    top: 0.28rem;
+    right: 0.28rem;
+    z-index: 5;
+}
+
+.message-menu-trigger {
+    display: grid;
+    place-items: center;
+    width: 28px;
+    height: 28px;
+    color: currentColor;
+    background: rgba(0, 0, 0, 0.12);
+    border: 0;
+    border-radius: 50%;
+    opacity: 0;
+    transition: opacity 0.16s ease, background 0.16s ease;
+}
+
+article.message:hover .message-menu-trigger,
+.message-menu-trigger:focus-visible {
+    opacity: 1;
+}
+
+.message-menu-trigger:hover {
+    background: rgba(0, 0, 0, 0.24);
+}
+
+/* ── Animación de aparición de mensajes ─────────────────────────────────────── */
+@keyframes show-message {
+    from {
+        opacity: 0;
+        transform: translateY(10px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+@keyframes message-in {
+    from {
+        transform: translateY(8px);
+        opacity: 0;
+    }
+    to {
+        transform: translateY(0);
+        opacity: 1;
+    }
+}
