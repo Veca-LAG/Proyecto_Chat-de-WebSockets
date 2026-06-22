@@ -85,6 +85,8 @@ Proyecto/
 ├── package-lock.json
 ├── docker-compose.yml
 ├── .env.example
+├── .env.server2.example
+├── .env.server2-red.example
 ├── .gitignore
 ├── README.md
 │
@@ -92,8 +94,7 @@ Proyecto/
 │   └── moderation_terms.seed.json
 │
 ├── data/
-│   ├── .gitkeep
-│   └── db.example.json
+│   └── .gitkeep
 │
 ├── docs/
 │   ├── ARQUITECTURA_DISTRIBUIDA.md
@@ -141,6 +142,9 @@ Proyecto/
 │   │
 │   └── modules/
 │       ├── auth/
+│       │   ├── auth.handlers.js
+│       │   ├── auth.service.js
+│       │   └── auth.repository.js
 │       ├── messages/
 │       ├── reactions/
 │       ├── groups/
@@ -172,37 +176,32 @@ Proyecto/
         ├── app.js
         ├── socket.js
         ├── state.js
-        ├── dom.js
         ├── dispatch.js
         │
-        ├── modules/
-        │   ├── login.js
-        │   ├── session.js
-        │   ├── globalChat.js
-        │   ├── privateChat.js
-        │   ├── groups.js
-        │   ├── users.js
-        │   ├── history.js
-        │   ├── messages.js
-        │   ├── messageMenu.js
-        │   ├── messageReply.js
-        │   ├── reactions.js
-        │   ├── profile.js
-        │   ├── profilePopover.js
-        │   ├── profileModal.js
-        │   ├── presence.js
-        │   ├── emojiPicker.js
-        │   ├── typing.js
-        │   ├── mobileActions.js
-        │   └── moderationSettings.js
-        │
-        └── shared/
-            ├── popover.js
-            ├── escapeHtml.js
-            ├── formatTime.js
-            ├── storage.js
-            ├── validators.js
-            └── events.js
+        └── modules/
+            ├── auth.js
+            ├── login.js
+            ├── session.js
+            ├── navigation.js
+            ├── chatList.js
+            ├── chatShell.js
+            ├── chatSelect.js
+            ├── privateChat.js
+            ├── groups.js
+            ├── messageRender.js
+            ├── messageHandlers.js
+            ├── messageActions.js
+            ├── messageMenu.js
+            ├── messageReply.js
+            ├── reactions.js
+            ├── profile.js
+            ├── profileModal.js
+            ├── emojiPicker.js
+            ├── typing.js
+            ├── typingContext.js
+            ├── search.js
+            ├── mobileActions.js
+            └── moderationSettings.js
 ```
 
 ---
@@ -271,7 +270,8 @@ DATABASE_URL=postgresql://chatuser:chatpass@localhost:5432/chatdb
 
 REDIS_PASSWORD=chat_redis_password
 REDIS_URL=redis://:chat_redis_password@localhost:6379
-REDIS_CHANNEL=chat_cluster_events
+# IMPORTANTE: Este valor debe ser IDÉNTICO en todos los servidores del cluster.
+REDIS_CHANNEL=chat:events
 
 MAX_HISTORY=300
 MAX_MESSAGE_LENGTH=300
@@ -284,6 +284,8 @@ HEARTBEAT_INTERVAL_MS=30000
 
 No subas el archivo `.env` a GitHub.
 Solo debe subirse `.env.example`.
+
+> **Nota sobre `REDIS_CHANNEL`**: Si tienes un `.env` viejo con `REDIS_CHANNEL=chat_cluster_events`, cámbialo a `chat:events`. Es el canal por donde los servidores se comunican entre sí. Si los dos servidores tienen valores distintos, los mensajes no se sincronizan.
 
 ---
 
@@ -443,7 +445,7 @@ DATABASE_URL=postgresql://chatuser:chatpass@localhost:5432/chatdb
 
 REDIS_PASSWORD=chat_redis_password
 REDIS_URL=redis://:chat_redis_password@localhost:6379
-REDIS_CHANNEL=chat_cluster_events
+REDIS_CHANNEL=chat:events
 
 MAX_HISTORY=300
 MAX_MESSAGE_LENGTH=300
@@ -460,27 +462,26 @@ npm run moderation:import
 npm run dev:server1
 ```
 
+> Puedes copiar el archivo de ejemplo para la PC B directamente: `.env.server2-red.example`
+
 ---
 
 ## 15. Configuración de la computadora B
 
-En la computadora B, el `.env` debe apuntar a la IP de la computadora A.
+La computadora B no necesita Docker. Solo necesita Node.js instalado y el proyecto copiado.
 
-Ejemplo:
+En la computadora B, crea un `.env` apuntando a la IP de la computadora A:
 
 ```env
 HOST=0.0.0.0
 PORT=3001
 SERVER_ID=server-2
 
-POSTGRES_USER=chatuser
-POSTGRES_PASSWORD=chatpass
-POSTGRES_DB=chatdb
 DATABASE_URL=postgresql://chatuser:chatpass@192.168.137.196:5432/chatdb
 
 REDIS_PASSWORD=chat_redis_password
 REDIS_URL=redis://:chat_redis_password@192.168.137.196:6379
-REDIS_CHANNEL=chat_cluster_events
+REDIS_CHANNEL=chat:events
 
 MAX_HISTORY=300
 MAX_MESSAGE_LENGTH=300
@@ -489,6 +490,8 @@ RATE_LIMIT_MAX_MESSAGES=30
 HEARTBEAT_INTERVAL_MS=30000
 ```
 
+> **Reemplaza `192.168.137.196` con la IP real de la computadora A** (la que obtienes con `ipconfig`).
+
 Luego ejecuta en la computadora B:
 
 ```powershell
@@ -496,41 +499,41 @@ npm install
 npm run dev:server2
 ```
 
-Abre:
+Abre en la computadora B:
 
 ```text
 http://localhost:3001
 ```
 
-Desde otra computadora en la red también puedes entrar usando la IP:
+Desde cualquier computadora de la red puedes entrar usando la IP:
 
 ```text
-http://192.168.137.196:3000
-```
-
-o para servidor 2:
-
-```text
-http://IP-DE-COMPUTADORA-B:3001
+http://192.168.137.196:3000   ← servidor en PC A
+http://IP-DE-PC-B:3001        ← servidor en PC B
 ```
 
 ---
 
-## 16. Abrir puertos en Firewall de Windows
+## 16. Abrir puertos en Firewall de Windows (OBLIGATORIO para red local)
 
-En la computadora A, abre PowerShell como administrador y ejecuta:
+Si la computadora B no puede conectarse a la A, el **Firewall de Windows es casi siempre la causa**.
 
-```powershell
-New-NetFirewallRule -DisplayName "Chat WebSocket 3000" -Direction Inbound -Protocol TCP -LocalPort 3000 -Action Allow
-New-NetFirewallRule -DisplayName "PostgreSQL 5432" -Direction Inbound -Protocol TCP -LocalPort 5432 -Action Allow
-New-NetFirewallRule -DisplayName "Redis 6379" -Direction Inbound -Protocol TCP -LocalPort 6379 -Action Allow
-```
-
-Si usas servidor 2 en otra computadora, también puedes abrir el puerto 3001 en esa computadora:
+En la **computadora A**, abre PowerShell **como administrador** y ejecuta:
 
 ```powershell
-New-NetFirewallRule -DisplayName "Chat WebSocket 3001" -Direction Inbound -Protocol TCP -LocalPort 3001 -Action Allow
+New-NetFirewallRule -DisplayName "Ola Chat WebSocket 3000" -Direction Inbound -Protocol TCP -LocalPort 3000 -Action Allow
+New-NetFirewallRule -DisplayName "Ola PostgreSQL 5432" -Direction Inbound -Protocol TCP -LocalPort 5432 -Action Allow
+New-NetFirewallRule -DisplayName "Ola Redis 6379" -Direction Inbound -Protocol TCP -LocalPort 6379 -Action Allow
 ```
+
+En la **computadora B** (si también tiene servidor):
+
+```powershell
+New-NetFirewallRule -DisplayName "Ola Chat WebSocket 3001" -Direction Inbound -Protocol TCP -LocalPort 3001 -Action Allow
+```
+
+> **Sin estas reglas, la computadora B no podrá conectarse aunque todo lo demás esté bien configurado.**
+> Si ya las ejecutaste antes, no hace daño ejecutarlas de nuevo (solo crea reglas duplicadas inofensivas).
 
 ---
 
@@ -760,19 +763,23 @@ docker ps
 
 PostgreSQL debe estar corriendo.
 
-### 4. Ambos servidores usan el mismo Redis
+### 4. Ambos servidores usan el mismo Redis y el mismo canal
 
-Revisa en `.env`:
+Revisa en `.env` de ambos servidores:
 
 ```env
 REDIS_URL=redis://:chat_redis_password@localhost:6379
+REDIS_CHANNEL=chat:events
 ```
 
 o si es otra computadora:
 
 ```env
 REDIS_URL=redis://:chat_redis_password@IP-DE-LA-PC-PRINCIPAL:6379
+REDIS_CHANNEL=chat:events
 ```
+
+> **El `REDIS_CHANNEL` debe ser exactamente igual en ambos servidores.** Si uno tiene `chat:events` y el otro `chat_cluster_events`, los mensajes no se sincronizan.
 
 ### 5. Ambos servidores usan la misma base de datos
 
@@ -832,31 +839,60 @@ docker compose up -d
 
 ### No puedo entrar desde otra computadora
 
-Revisa:
+Sigue estos pasos en orden:
 
-* Que ambas computadoras estén en la misma red.
-* Que estés usando la IP correcta.
-* Que `HOST=0.0.0.0`.
-* Que el Firewall permita el puerto.
-* Que uses `http://IP:PUERTO`.
+**1. Verifica que ambas PCs estén en la misma red**
 
-No uses:
-
-```text
-http://0.0.0.0:3000
+```powershell
+ping 192.168.137.196
 ```
 
-En el navegador debes usar:
+Debe responder. Si no responde, es un problema de red, no del proyecto.
 
-```text
-http://localhost:3000
+**2. Verifica puertos desde la computadora B**
+
+```powershell
+Test-NetConnection 192.168.137.196 -Port 3000
+Test-NetConnection 192.168.137.196 -Port 5432
+Test-NetConnection 192.168.137.196 -Port 6379
 ```
 
-o:
+Si alguno dice `TcpTestSucceeded : False`, el Firewall está bloqueando ese puerto. Ve a la sección 16 y ejecuta las reglas como administrador.
+
+**3. Verifica que Docker esté levantado en PC A**
+
+```powershell
+docker ps
+```
+
+Debes ver `chat-postgres` y `chat-redis` en estado `Up`.
+
+**4. Verifica la IP correcta**
+
+En la computadora A ejecuta:
+
+```powershell
+ipconfig
+```
+
+Busca la **IPv4** de tu adaptador de red activo (Wi-Fi o Ethernet). No uses `0.0.0.0` en el navegador.
+
+**5. Verifica que el .env de PC B tiene la IP correcta**
+
+```env
+DATABASE_URL=postgresql://chatuser:chatpass@192.168.X.X:5432/chatdb
+REDIS_URL=redis://:chat_redis_password@192.168.X.X:6379
+REDIS_CHANNEL=chat:events
+```
+
+**6. En el navegador usa la IP, no localhost**
 
 ```text
-http://IP-DE-LA-PC:3000
+http://192.168.X.X:3000   ← si quieres entrar al servidor de PC A desde PC B
+http://localhost:3001       ← si quieres entrar al servidor local de PC B
 ```
+
+No uses `http://0.0.0.0:3000` en el navegador, esa dirección no funciona en navegadores.
 
 ---
 

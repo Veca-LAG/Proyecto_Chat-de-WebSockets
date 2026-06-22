@@ -8,7 +8,7 @@ services:
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-chatpass}
       POSTGRES_DB: ${POSTGRES_DB:-chatdb}
     ports:
-      - "5432:5432"
+      - "0.0.0.0:5432:5432"
     volumes:
       - chat_postgres_data:/var/lib/postgresql/data
     healthcheck:
@@ -21,9 +21,9 @@ services:
     image: redis:7-alpine
     container_name: chat-redis
     restart: unless-stopped
-    command: ["redis-server", "--appendonly", "yes", "--requirepass", "${REDIS_PASSWORD:-chat_redis_password}"]
+    command: ["redis-server", "--appendonly", "yes", "--requirepass", "${REDIS_PASSWORD:-chat_redis_password}", "--bind", "0.0.0.0", "--protected-mode", "no"]
     ports:
-      - "6379:6379"
+      - "0.0.0.0:6379:6379"
     volumes:
       - chat_redis_data:/data
     healthcheck:

@@ -17,7 +17,7 @@ module.exports = {
     MIN_PASSWORD_LENGTH:    6,
     SESSION_DAYS:           30,
     INVITE_SECONDS:         24 * 60 * 60,
-    REDIS_CHANNEL:          'chat:events',
+    REDIS_CHANNEL:          process.env.REDIS_CHANNEL || 'chat:events',
     DATABASE_URL:           process.env.DATABASE_URL || 'postgresql://chatuser:chatpass@localhost:5432/chatdb',
     REDIS_URL:              process.env.REDIS_URL    || 'redis://localhost:6379',
     MODERATION_TERMS_SEED_FILE: path.join(__dirname, '..', 'config', 'moderation_terms.seed.json'),
