@@ -191,13 +191,15 @@
 
             <footer class="sidebar-profile" aria-label="Perfil actual">
                 <button class="profile-footer-trigger" id="selfProfileButton" type="button" aria-haspopup="true" aria-expanded="false" aria-label="Ver perfil">
-                    <div class="profile-mini-avatar up-avatar" id="selfAvatar" aria-hidden="true">Tú</div>
+                    <div class="profile-avatar-wrapper">
+                        <div class="profile-mini-avatar up-avatar" id="selfAvatar" aria-hidden="true">Tú</div>
+                        <span class="presence-dot presence-dot--online" id="selfPresenceDot" aria-hidden="true"></span>
+                    </div>
                     <div class="profile-mini-text">
                         <strong id="selfNickname">Sin conectar</strong>
                         <p id="selfCode" class="profile-code">Sin código</p>
                         <p id="connectionStatus" class="connection-status disconnected">Desconectado</p>
                     </div>
-                    <span class="presence-dot presence-dot--online" id="selfPresenceDot" aria-hidden="true"></span>
                 </button>
                 <button class="icon-button logout-button" id="logoutButton" type="button" aria-label="Cerrar sesión" title="Cerrar sesión">
                     <svg class="icon" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg" aria-hidden="true"><path d="M8.25 9V5.25A2.25 2.25 0 0 1 10.5 3h6a2.25 2.25 0 0 1 2.25 2.25v13.5A2.25 2.25 0 0 1 16.5 21h-6a2.25 2.25 0 0 1-2.25-2.25V15m-3 0-3-3m0 0 3-3m-3 3H15"/></svg>
@@ -366,6 +368,7 @@
 
     <!-- ── MENÚ DE ESTADOS DE PRESENCIA ── -->
     <div class="presence-menu hidden" id="presenceMenu" role="menu" aria-label="Estado de presencia"></div>
+    <div class="presence-sub-menu hidden" id="presenceSubMenu" role="menu" aria-label="Duración del estado"></div>
 
     <!-- ── TARJETA DE PERFIL DE OTRO USUARIO ── -->
     <div class="user-profile-card hidden" id="userProfileCard" role="dialog" aria-modal="true" aria-label="Perfil de usuario">

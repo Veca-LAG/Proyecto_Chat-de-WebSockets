@@ -1,6 +1,6 @@
 'use strict';
 
-const { broadcastLocal, sendToLocalUser } = require('../websocket/helpers');
+const { broadcastLocal, sendToLocalUser, broadcastLocalExcludeUser } = require('../websocket/helpers');
 const { broadcastMessageLocal, sendMessageToLocalUser, loadModerationTerms } = require('../modules/moderation/moderation.service');
 const { broadcastUserListLocal }   = require('../utils/presence');
 const { broadcastGroupListsLocal } = require('../modules/groups/groups.service');
@@ -96,6 +96,12 @@ async function handleClusterEvent(rawMessage) {
         case 'presence_updated':
             broadcastLocal({ type: 'presence_updated', payload: data.payload, timestamp });
             break;
+        case 'presence_updated_invisible': {
+            const { userId, updatedAt } = data.payload;
+            sendToLocalUser(userId, { type: 'presence_updated', payload: { userId, presenceStatus: 'invisible', updatedAt }, timestamp });
+            broadcastLocalExcludeUser({ type: 'presence_updated', payload: { userId, presenceStatus: 'offline', updatedAt }, timestamp }, userId);
+            break;
+        }
         default:
             break;
     }

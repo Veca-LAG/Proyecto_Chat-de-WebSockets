@@ -1,7 +1,7 @@
 import { state, elements } from '../state.js';
 import { loadLocalState, loadUnreadCounts } from '../shared/storage.js';
 import { saveSession } from './session.js';
-import { getProfile, renderAvatarContent, applyPresenceDot } from './profile.js';
+import { getProfile, renderAvatarContent, applyPresenceDot, PRESENCE_CONFIG } from './profile.js';
 
 export function setAuthMode(mode) {
     state.authMode = mode;
@@ -78,10 +78,21 @@ export function setAuthenticatedUser(user, sessionToken) {
 }
 
 export function updateConnectionStatus(status) {
-    const labels = { connected: 'Conectado', connecting: 'Conectando...', disconnected: 'Desconectado' };
-    elements.connectionStatus.textContent = labels[status];
     elements.connectionStatus.className = `connection-status ${status}`;
+    if (status === 'connected') {
+        const profile = state.selfId ? getProfile(state.selfId) : null;
+        elements.connectionStatus.textContent = PRESENCE_CONFIG[profile?.presenceStatus]?.label ?? 'En línea';
+    } else {
+        const labels = { connecting: 'Conectando...', disconnected: 'Desconectado' };
+        elements.connectionStatus.textContent = labels[status] ?? status;
+    }
     updateComposerState();
+}
+
+export function refreshPresenceLabel() {
+    if (elements.connectionStatus.classList.contains('connected')) {
+        updateConnectionStatus('connected');
+    }
 }
 
 export function updateComposerState() {

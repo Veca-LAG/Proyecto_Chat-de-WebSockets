@@ -1,12 +1,12 @@
 import { state, elements } from './state.js';
 import { updateCensorshipLabel } from './modules/moderationSettings.js';
-import { upsertProfile, applyPresenceDot } from './modules/profile.js';
+import { upsertProfile, applyPresenceDot, PRESENCE_CONFIG } from './modules/profile.js';
 import { handleTypingStatus } from './modules/typing.js';
 import { applyIncomingReaction, applyReactionSnapshot } from './modules/reactions.js';
 import { showMiniToast } from './modules/messageMenu.js';
 import { clearSession } from './modules/session.js';
 
-import { setAuthLoading, setAuthenticatedUser, updateComposerState, updateConnectionStatus, showLogin, updateSelfIdentity } from './modules/auth.js';
+import { setAuthLoading, setAuthenticatedUser, updateComposerState, updateConnectionStatus, showLogin, updateSelfIdentity, refreshPresenceLabel } from './modules/auth.js';
 import { renderNavigation } from './modules/navigation.js';
 import { renderChatList } from './modules/chatList.js';
 import { renderActiveChatShell, renderProfileUsers } from './modules/chatShell.js';
@@ -23,6 +23,7 @@ import {
     playReactionSound,
     playUserOnlineSound,
     playUserOfflineSound,
+    setSoundEnabled,
 } from '../sounds/sound.js';
 
 export function handleServerMessage(rawMessage) {
@@ -183,6 +184,14 @@ export function handleServerMessage(rawMessage) {
         case 'my_profile':
             upsertProfile(payload);
             updateSelfIdentity();
+            refreshPresenceLabel();
+            // DND activo al reconectar → silenciar y bloquear botón
+            const wasDnd = payload.presenceStatus === 'dnd';
+            if (wasDnd) {
+                setSoundEnabled(false);
+                document.dispatchEvent(new CustomEvent('ola:sound-changed', { detail: { enabled: false } }));
+            }
+            document.dispatchEvent(new CustomEvent('ola:dnd-lock', { detail: { locked: wasDnd } }));
             break;
 
         case 'user_profile':
@@ -199,9 +208,53 @@ export function handleServerMessage(rawMessage) {
             if (payload.userId === state.selfId) {
                 const selfDot = document.getElementById('selfPresenceDot');
                 if (selfDot) applyPresenceDot(selfDot, payload.presenceStatus);
+
+                // Actualizar label en el footer ("En línea", "Ausente", etc.)
+                refreshPresenceLabel();
+
+                // DND → silenciar y bloquear el botón de sonido
+                const isDnd = payload.presenceStatus === 'dnd';
+                if (isDnd) {
+                    setSoundEnabled(false);
+                    document.dispatchEvent(new CustomEvent('ola:sound-changed', { detail: { enabled: false } }));
+                }
+                document.dispatchEvent(new CustomEvent('ola:dnd-lock', { detail: { locked: isDnd } }));
+
+                // Si el popup propio está abierto, actualizar sus dots y label en vivo
+                const popup = document.getElementById('profileQuickPopup');
+                if (popup && !popup.classList.contains('hidden')) {
+                    const popupDot = popup.querySelector('[data-pf="presence-dot"]');
+                    if (popupDot) applyPresenceDot(popupDot, payload.presenceStatus);
+                    const rowDot = document.querySelector('#popupStatusRow .presence-dot');
+                    if (rowDot) applyPresenceDot(rowDot, payload.presenceStatus);
+                    const label = popup.querySelector('[data-pf="presence-label"]');
+                    if (label) label.textContent = PRESENCE_CONFIG[payload.presenceStatus]?.label ?? 'En línea';
+                }
             } else {
                 if (payload.presenceStatus === 'online') playUserOnlineSound();
                 else if (payload.presenceStatus === 'offline') playUserOfflineSound();
+
+                // Si el cambio mueve al usuario entre secciones (invisible/visible, online/offline)
+                // re-renderizamos la lista para que aparezca/desaparezca correctamente.
+                // Para cambios de estado simples (away/dnd) solo actualizamos el dot en vivo.
+                const movesSection = payload.presenceStatus === 'offline' || payload.presenceStatus === 'online';
+                if (movesSection) {
+                    renderChatList();
+                } else {
+                    // Actualización en vivo del dot y subtitle sin re-render completo
+                    const listWrap = document.querySelector(`.chat-list-av-wrap[data-user-id="${payload.userId}"]`);
+                    if (listWrap) {
+                        const dot = listWrap.querySelector('.presence-dot');
+                        if (dot) applyPresenceDot(dot, payload.presenceStatus);
+                        const item = listWrap.closest('.chat-list-item');
+                        const subtitle = item?.querySelector('small');
+                        if (subtitle) {
+                            const label = PRESENCE_CONFIG[payload.presenceStatus]?.label ?? 'Desconectado';
+                            const parts = subtitle.textContent.split(' · ');
+                            subtitle.textContent = parts.length > 1 ? `${label} · ${parts.slice(1).join(' · ')}` : label;
+                        }
+                    }
+                }
             }
             break;
         }

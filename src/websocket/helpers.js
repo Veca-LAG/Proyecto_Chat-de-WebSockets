@@ -23,6 +23,16 @@ function broadcastLocal(data, excludeConnectionId = null) {
     });
 }
 
+// Envía a todos EXCEPTO a los sockets del userId indicado (útil para invisible).
+function broadcastLocalExcludeUser(data, userId) {
+    const userSockets = getSocketsForUser(userId);
+    _wss.clients.forEach((client) => {
+        if (client.readyState === WebSocket.OPEN && !userSockets.has(client)) {
+            client.send(JSON.stringify(data));
+        }
+    });
+}
+
 function getSocketsForUser(userId) {
     return socketsByUserId.get(userId) || new Set();
 }
@@ -56,7 +66,7 @@ function rejectRateLimited(ws) {
 
 module.exports = {
     setWss, getWss,
-    sendJson, broadcastLocal,
+    sendJson, broadcastLocal, broadcastLocalExcludeUser,
     getSocketsForUser, sendToLocalUser,
     checkRateLimit, rejectRateLimited
 };

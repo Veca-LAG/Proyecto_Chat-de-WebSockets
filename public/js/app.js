@@ -14,12 +14,15 @@ import {
     setSoundEnabled,
     isSoundEnabled,
     playOutgoingMessageSound,
+    setPresenceTimer,
+    cancelPresenceTimer,
+    checkAndRestorePresenceTimer,
 } from '../sounds/sound.js';
 import { initMessageActions } from './modules/messageActions.js';
 import { clearReplyingTo } from './modules/messageReply.js';
 import { sendPrivate } from './modules/privateChat.js';
 import { openProfileModal, setupProfileModal } from './modules/profileModal.js';
-import { openQuickProfile, getProfile } from './modules/profile.js';
+import { openQuickProfile, getProfile, closeStatusMenu } from './modules/profile.js';
 import { setupReactionPillClicks } from './modules/reactions.js';
 
 import { setAuthMode, setAuthLoading, getAuthFormValues, setAuthenticatedUser, updateSelfIdentity, updateComposerState } from './modules/auth.js';
@@ -66,9 +69,22 @@ function setupSoundToggle() {
         btn.title = enabled ? 'Silenciar sonidos' : 'Activar sonidos';
     };
 
+    const setDndLock = (locked) => {
+        btn.dataset.dndLocked = locked ? 'true' : '';
+        btn.classList.toggle('sound-dnd-locked', locked);
+        btn.title = locked ? 'Silenciado por No molestar — cambia tu estado para re-activarlo' : (isSoundEnabled() ? 'Silenciar sonidos' : 'Activar sonidos');
+    };
+
     update(isSoundEnabled());
 
+    // Eventos externos de dispatch.js
+    document.addEventListener('ola:sound-changed', (e) => update(e.detail.enabled));
+    document.addEventListener('ola:dnd-lock',      (e) => setDndLock(e.detail.locked));
+
     btn.addEventListener('click', () => {
+        // El botón queda inactivo mientras DND esté activo
+        if (btn.dataset.dndLocked === 'true') return;
+
         const next = !isSoundEnabled();
         setSoundEnabled(next);
         update(next);
@@ -153,6 +169,20 @@ function handleLoginSubmit(event) {
 // ── Inicialización ────────────────────────────────────────────────────────────
 function initApp() {
     initSoundManager();
+    checkAndRestorePresenceTimer();
+
+    // Timer de presencia expirado → volver a En línea
+    document.addEventListener('ola:presence-timer-expired', () => {
+        sendJson({ type: 'update_presence_status', payload: { presenceStatus: 'online' }, timestamp: new Date().toISOString() });
+    });
+
+    // Sub-menú seleccionó una duración → guardar timer
+    document.addEventListener('ola:presence-timer-set', (e) => {
+        const { status, ms } = e.detail;
+        cancelPresenceTimer();
+        if (ms !== null) setPresenceTimer(status, ms);
+        closeStatusMenu();
+    });
     document.addEventListener('click',    unlockAudio);
     document.addEventListener('keydown',  unlockAudio);
     document.addEventListener('touchstart', unlockAudio);

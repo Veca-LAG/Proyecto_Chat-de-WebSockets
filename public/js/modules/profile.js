@@ -33,6 +33,14 @@ export function getProfile(userId) {
     return profileCache.get(userId) ?? null;
 }
 
+export function getProfileByNickname(nickname) {
+    const lc = String(nickname).toLowerCase();
+    for (const p of profileCache.values()) {
+        if ((p.username || '').toLowerCase() === lc) return p;
+    }
+    return null;
+}
+
 export function renderAvatarContent(el, profile) {
     if (!el) return;
     if (profile?.avatarData) {
@@ -55,7 +63,7 @@ export function applyPresenceDot(dotEl, status) {
     if (!dotEl) return;
     dotEl.className = 'presence-dot';
     dotEl.classList.add(`presence-dot--${status || 'online'}`);
-    dotEl.title = PRESENCE_CONFIG[status]?.label || 'En línea';
+    dotEl.title = PRESENCE_CONFIG[status]?.label ?? (status === 'offline' ? 'Desconectado' : 'En línea');
 }
 
 export function applyProfileToUserElements(userId) {
@@ -149,9 +157,95 @@ export function closeQuickProfile() {
     _quickPopupOpen = false;
 }
 
+// Statuses que muestran sub-menú de duración
+const TIMED_STATUSES = new Set(['away', 'dnd']);
+
+const DURATION_OPTIONS = [
+    { label: 'Durante 15 minutos', ms: 15 * 60 * 1000 },
+    { label: 'Durante 1 hora',     ms:      60 * 60 * 1000 },
+    { label: 'Durante 8 horas',    ms:  8 * 60 * 60 * 1000 },
+    { label: 'Durante 24 horas',   ms: 24 * 60 * 60 * 1000 },
+    { label: 'Durante 3 días',     ms:  3 * 24 * 60 * 60 * 1000 },
+    { label: 'Siempre',            ms: null },
+];
+
+function _positionMenu(menu, anchorEl, side = 'top') {
+    if (!anchorEl) return;
+    const rect = anchorEl.getBoundingClientRect();
+    if (side === 'top') {
+        menu.style.left   = `${rect.left}px`;
+        menu.style.bottom = `${window.innerHeight - rect.top + 4}px`;
+        menu.style.top    = '';
+    } else {
+        // 'right' — aparece a la derecha del menú principal
+        menu.style.top    = `${rect.top}px`;
+        menu.style.left   = `${rect.right + 4}px`;
+        menu.style.bottom = '';
+    }
+    requestAnimationFrame(() => {
+        const mr = menu.getBoundingClientRect();
+        if (mr.right > window.innerWidth - 8) {
+            menu.style.left = `${window.innerWidth - mr.width - 8}px`;
+        }
+        if (mr.bottom > window.innerHeight - 8) {
+            menu.style.top  = `${window.innerHeight - mr.height - 8}px`;
+            menu.style.bottom = '';
+        }
+        if (mr.top < 8) {
+            if (side === 'top') {
+                menu.style.bottom = '';
+                menu.style.top    = `${rect.bottom + 4}px`;
+            } else {
+                menu.style.top = '8px';
+            }
+        }
+    });
+}
+
+function openPresenceSubMenu(status, itemEl, sendJson) {
+    const sub = document.getElementById('presenceSubMenu');
+    if (!sub) return;
+
+    sub.innerHTML = '';
+    DURATION_OPTIONS.forEach(({ label, ms }) => {
+        const btn = document.createElement('button');
+        btn.type = 'button';
+        btn.className = 'presence-menu-item';
+        btn.textContent = label;
+        btn.addEventListener('click', (e) => {
+            e.stopPropagation();
+            sendJson?.({ type: 'update_presence_status', payload: { presenceStatus: status }, timestamp: new Date().toISOString() });
+            document.dispatchEvent(new CustomEvent('ola:presence-timer-set', { detail: { status, ms } }));
+            sub.classList.add('hidden');
+            document.getElementById('presenceMenu')?.classList.add('hidden');
+            closeStatusMenu();
+        });
+        sub.appendChild(btn);
+    });
+
+    sub.classList.remove('hidden');
+    _positionMenu(sub, itemEl, 'right');
+
+    requestAnimationFrame(() => {
+        document.addEventListener('click', _closeSubMenuOnOutside, { once: true });
+    });
+}
+
+function _closeSubMenuOnOutside(e) {
+    const sub = document.getElementById('presenceSubMenu');
+    const main = document.getElementById('presenceMenu');
+    if (!sub) return;
+    if (!sub.contains(e.target) && !main?.contains(e.target)) {
+        sub.classList.add('hidden');
+    } else {
+        document.addEventListener('click', _closeSubMenuOnOutside, { once: true });
+    }
+}
+
 export function openStatusMenu(currentStatus, anchorEl, sendJson) {
     const menu = document.getElementById('presenceMenu');
     if (!menu) return;
+    document.getElementById('presenceSubMenu')?.classList.add('hidden');
 
     menu.innerHTML = '';
 
@@ -164,19 +258,35 @@ export function openStatusMenu(currentStatus, anchorEl, sendJson) {
         dot.className = `presence-dot presence-dot--${status}`;
 
         const label = document.createElement('span');
+        label.style.flex = '1';
         label.textContent = cfg.label;
 
         btn.append(dot, label);
-        btn.addEventListener('click', (e) => {
-            e.stopPropagation();
-            sendJson?.({ type: 'update_presence_status', payload: { presenceStatus: status }, timestamp: new Date().toISOString() });
-            menu.classList.add('hidden');
-            closeStatusMenu();
-        });
+
+        if (TIMED_STATUSES.has(status)) {
+            const chevron = document.createElement('span');
+            chevron.className = 'pqp-chevron';
+            chevron.textContent = '›';
+            btn.append(chevron);
+            btn.addEventListener('click', (e) => {
+                e.stopPropagation();
+                openPresenceSubMenu(status, btn, sendJson);
+            });
+        } else {
+            btn.addEventListener('click', (e) => {
+                e.stopPropagation();
+                sendJson?.({ type: 'update_presence_status', payload: { presenceStatus: status }, timestamp: new Date().toISOString() });
+                document.dispatchEvent(new CustomEvent('ola:presence-timer-set', { detail: { status, ms: null } }));
+                menu.classList.add('hidden');
+                closeStatusMenu();
+            });
+        }
+
         menu.appendChild(btn);
     });
 
     menu.classList.remove('hidden');
+    _positionMenu(menu, anchorEl, 'top');
 
     requestAnimationFrame(() => {
         document.addEventListener('click', _closeMenuOnOutside, { once: true });
@@ -193,8 +303,8 @@ function _closeMenuOnOutside(e) {
 }
 
 export function closeStatusMenu() {
-    const menu = document.getElementById('presenceMenu');
-    if (menu) menu.classList.add('hidden');
+    document.getElementById('presenceMenu')?.classList.add('hidden');
+    document.getElementById('presenceSubMenu')?.classList.add('hidden');
 }
 
 export function showUserProfileCard(profile, anchorEl) {

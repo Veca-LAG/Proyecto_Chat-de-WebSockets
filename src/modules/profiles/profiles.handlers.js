@@ -2,7 +2,7 @@
 
 const pool              = require('../../db/pool');
 const { sanitizeText }  = require('../../utils/sanitize');
-const { sendJson, broadcastLocal } = require('../../websocket/helpers');
+const { sendJson, broadcastLocal, broadcastLocalExcludeUser, sendToLocalUser } = require('../../websocket/helpers');
 const { publishCluster }= require('../../redis/publisher');
 const { users }         = require('../../websocket/state');
 const { logEvent }      = require('../../utils/logger');
@@ -98,11 +98,18 @@ async function handleUpdatePresenceStatus(ws, payload) {
         [user.id, user.nickname, presenceStatus]
     );
 
-    const presencePayload = { userId: user.id, presenceStatus, updatedAt: new Date().toISOString() };
     const ts = new Date().toISOString();
 
-    broadcastLocal({ type: 'presence_updated', payload: presencePayload, timestamp: ts });
-    await publishCluster({ event: 'presence_updated', payload: presencePayload });
+    if (presenceStatus === 'invisible') {
+        // El propio usuario ve 'invisible'; el resto ve 'offline'
+        sendToLocalUser(user.id, { type: 'presence_updated', payload: { userId: user.id, presenceStatus: 'invisible', updatedAt: ts }, timestamp: ts });
+        broadcastLocalExcludeUser({ type: 'presence_updated', payload: { userId: user.id, presenceStatus: 'offline', updatedAt: ts }, timestamp: ts }, user.id);
+        await publishCluster({ event: 'presence_updated_invisible', payload: { userId: user.id, updatedAt: ts } });
+    } else {
+        const presencePayload = { userId: user.id, presenceStatus, updatedAt: ts };
+        broadcastLocal({ type: 'presence_updated', payload: presencePayload, timestamp: ts });
+        await publishCluster({ event: 'presence_updated', payload: presencePayload });
+    }
 }
 
 async function handleUpdateCustomStatus(ws, payload) {

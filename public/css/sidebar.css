@@ -69,6 +69,25 @@ body[data-theme='dark'] .server-rail {
     color: var(--text-primary);
 }
 
+/* Botón de sonido bloqueado por DND */
+#soundToggle.sound-dnd-locked {
+    opacity: 0.45;
+    cursor: not-allowed;
+    position: relative;
+}
+#soundToggle.sound-dnd-locked::after {
+    content: '⛔';
+    position: absolute;
+    top: 2px;
+    right: 4px;
+    font-size: 0.55rem;
+    line-height: 1;
+}
+#soundToggle.sound-dnd-locked:hover {
+    color: var(--presence-dnd);
+    opacity: 0.65;
+}
+
 .rail-divider {
     width: 38px;
     height: 1px;
@@ -263,7 +282,7 @@ body[data-theme='dark'] .server-rail {
     font-size: 0.86rem;
 }
 
-.chat-list-avatar::after,
+/* .chat-list-avatar::after suprimido: los dots ahora son spans explícitos dentro de .chat-list-av-wrap */
 .profile-mini-avatar::after,
 .chat-avatar::after {
     content: '';
@@ -275,6 +294,20 @@ body[data-theme='dark'] .server-rail {
     background: var(--color-success);
     border: 2px solid var(--sidebar-bg);
     border-radius: 50%;
+}
+
+/* Wrapper avatar + dot de presencia en la lista de usuarios */
+.chat-list-av-wrap {
+    position: relative;
+    flex-shrink: 0;
+}
+.chat-list-av-wrap > .presence-dot {
+    position: absolute;
+    bottom: -1px;
+    right: -1px;
+    width: 0.78rem;
+    height: 0.78rem;
+    border: 2px solid var(--sidebar-bg);
 }
 
 .chat-list-text {
@@ -391,6 +424,28 @@ body[data-theme='dark'] .server-rail {
 .presence-dot--away      { background: var(--presence-away); }
 .presence-dot--dnd       { background: var(--presence-dnd); }
 .presence-dot--invisible { background: var(--presence-invisible); }
+.presence-dot--offline   { background: var(--text-muted); opacity: 0.55; }
+
+/* Cuando el avatar del footer usa up-avatar, el ::after queda recortado
+   por overflow:hidden. Se suprime y el #selfPresenceDot span lo reemplaza. */
+.profile-mini-avatar.up-avatar::after {
+    display: none;
+}
+
+/* ── Contenedor avatar + dot en el footer ────────────────────────────────────── */
+.profile-avatar-wrapper {
+    position: relative;
+    flex-shrink: 0;
+}
+
+.profile-avatar-wrapper > .presence-dot {
+    position: absolute;
+    bottom: -2px;
+    right: -2px;
+    width: 12px;
+    height: 12px;
+    border: 2px solid var(--sidebar-bg);
+}
 
 /* ── Pie del sidebar ─────────────────────────────────────────────────────────── */
 .sidebar-profile {

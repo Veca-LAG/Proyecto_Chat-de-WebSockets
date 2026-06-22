@@ -18,10 +18,12 @@
 
 const KEY_ENABLED = 'ola-sound-enabled';
 const KEY_VOLUME  = 'ola-sound-volume';
+const KEY_TIMER   = 'ola-presence-timer';
 
 let _ctx     = null;
 let _enabled = true;
 let _volume  = 0.70;
+let _presenceTimerId = null;
 
 // Cooldown por tipo (ms) — evita spam en ráfagas del mismo tipo
 const CD = { incoming: 500, outgoing: 280, mention: 600,
@@ -255,4 +257,46 @@ export function playPopupSound() {
     if (!_canPlay('popup')) return;
     _mark('popup');
     _tone({ f0: 783.99, vol: 0.026, atk: 0.006, sus: 0.008, rel: 0.055, lp: 1600 });
+}
+
+// ── Timer de presencia (DND / Ausente con duración automática) ────────────────
+//
+// setPresenceTimer(status, ms): activa el revert automático.
+//   ms = null → "Siempre", sin temporizador.
+// cancelPresenceTimer(): cancela cualquier timer activo.
+// checkAndRestorePresenceTimer(): llama en initApp para recuperar un timer
+//   que sobrevivió a un reload de página.
+
+export function setPresenceTimer(status, durationMs) {
+    cancelPresenceTimer();
+    if (!durationMs) return; // "Siempre" — sin temporizador
+    const expiry = Date.now() + durationMs;
+    try { localStorage.setItem(KEY_TIMER, JSON.stringify({ expiry, status })); } catch {}
+    _presenceTimerId = setTimeout(() => {
+        try { localStorage.removeItem(KEY_TIMER); } catch {}
+        document.dispatchEvent(new CustomEvent('ola:presence-timer-expired'));
+    }, durationMs);
+}
+
+export function cancelPresenceTimer() {
+    if (_presenceTimerId) { clearTimeout(_presenceTimerId); _presenceTimerId = null; }
+    try { localStorage.removeItem(KEY_TIMER); } catch {}
+}
+
+export function checkAndRestorePresenceTimer() {
+    try {
+        const raw = localStorage.getItem(KEY_TIMER);
+        if (!raw) return;
+        const { expiry } = JSON.parse(raw);
+        const remaining = expiry - Date.now();
+        if (remaining <= 0) {
+            localStorage.removeItem(KEY_TIMER);
+            document.dispatchEvent(new CustomEvent('ola:presence-timer-expired'));
+        } else {
+            _presenceTimerId = setTimeout(() => {
+                try { localStorage.removeItem(KEY_TIMER); } catch {}
+                document.dispatchEvent(new CustomEvent('ola:presence-timer-expired'));
+            }, remaining);
+        }
+    } catch {}
 }

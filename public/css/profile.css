@@ -198,15 +198,21 @@
 }
 
 /* ── Menú de estado de presencia ─────────────────────────────────────────────── */
-.presence-menu {
+.presence-menu,
+.presence-sub-menu {
     position: fixed;
     z-index: 85;
-    min-width: 180px;
+    min-width: 190px;
     overflow: hidden;
     background: var(--bg-elevated);
     border: 1px solid var(--color-border);
     border-radius: var(--radius-md);
     box-shadow: var(--shadow-card);
+}
+
+.presence-sub-menu {
+    z-index: 86;
+    min-width: 180px;
 }
 
 .presence-menu-item {

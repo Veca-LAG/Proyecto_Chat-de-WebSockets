@@ -85,8 +85,13 @@ async function detachSocket(ws, notify = true) {
             const remainingGlobalConnections = await markUserOfflineFromThisServer(user.id);
             if (notify) {
                 if (remainingGlobalConnections === 0) {
-                    broadcastLocal({ type: 'system', payload: { text: `${user.nickname} se ha desconectado 🔴` }, timestamp: new Date().toISOString() });
+                    const ts = new Date().toISOString();
+                    broadcastLocal({ type: 'system', payload: { text: `${user.nickname} se ha desconectado 🔴` }, timestamp: ts });
                     await publishCluster({ event: 'system', payload: { text: `${user.nickname} se ha desconectado 🔴` } });
+                    // Notificar a todos que el usuario quedó offline para actualizar los dots
+                    const offlinePayload = { userId: user.id, presenceStatus: 'offline', updatedAt: ts };
+                    broadcastLocal({ type: 'presence_updated', payload: offlinePayload, timestamp: ts });
+                    await publishCluster({ event: 'presence_updated', payload: offlinePayload });
                 }
                 await broadcastUserListLocal();
                 await broadcastGroupListsLocal();
