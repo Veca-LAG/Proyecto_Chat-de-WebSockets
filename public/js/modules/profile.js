@@ -71,7 +71,8 @@ export function applyProfileToUserElements(userId) {
     if (!profile) return;
 
     document.querySelectorAll(`[data-user-id="${userId}"]`).forEach(el => {
-        const avatarEl = el.classList.contains('up-avatar') ? el : el.querySelector('.up-avatar');
+        const avatarEl = el.classList.contains('up-avatar') ? el
+            : (el.querySelector('.up-avatar') || el.querySelector('.chat-list-avatar'));
         if (avatarEl) renderAvatarContent(avatarEl, profile);
 
         const nameEl = el.querySelector('[data-pf="display-name"]');

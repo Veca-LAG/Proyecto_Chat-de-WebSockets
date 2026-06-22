@@ -1,7 +1,7 @@
 import { state, elements } from '../state.js';
 import { sanitizeInput, getInitials } from '../shared/utils.js';
 import { selectPrivateByUser, selectPrivateConversation, selectGroup } from './chatSelect.js';
-import { getProfile, getProfileByNickname, PRESENCE_CONFIG } from './profile.js';
+import { getProfile, getProfileByNickname, renderAvatarContent, PRESENCE_CONFIG } from './profile.js';
 
 // Para usuarios ajenos, 'invisible' siempre se representa como 'offline'
 function resolveStatus(userId, rawStatus) {
@@ -130,7 +130,8 @@ export function createListItem({ userId = null, avatar, title, subtitle, presenc
 
     const avatarEl = document.createElement('span');
     avatarEl.className = 'chat-list-avatar';
-    avatarEl.textContent = avatar;
+    const avatarProfile = userId ? getProfile(userId) : null;
+    renderAvatarContent(avatarEl, avatarProfile || { displayName: avatar === '#' || avatar === '@' ? title : avatar });
     avWrap.appendChild(avatarEl);
 
     // Dot de presencia (solo para usuarios, no grupos/canales)

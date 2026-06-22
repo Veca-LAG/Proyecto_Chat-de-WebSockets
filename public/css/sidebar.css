@@ -280,6 +280,16 @@ body[data-theme='dark'] .server-rail {
     height: 46px;
     border-radius: 50%;
     font-size: 0.86rem;
+    overflow: hidden;
+}
+
+.chat-list-avatar .avatar-img {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    border-radius: 50%;
 }
 
 /* .chat-list-avatar::after suprimido: los dots ahora son spans explícitos dentro de .chat-list-av-wrap */
