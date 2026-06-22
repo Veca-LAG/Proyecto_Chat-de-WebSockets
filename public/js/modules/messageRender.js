@@ -7,6 +7,7 @@ import { setReplyingTo, renderReplyQuote } from './messageReply.js';
 import { ensurePrivateConversation } from './chatSelect.js';
 import { sendJson } from '../socket.js';
 import { applyConversationSearch } from './search.js';
+import { getProfile, showUserProfileCard } from './profile.js';
 
 export function scrollToLastMessage() {
     elements.messages.scrollTop = elements.messages.scrollHeight;
@@ -61,6 +62,14 @@ export function renderMessage(message) {
 
     const authorEl = document.createElement('strong');
     authorEl.textContent = isOwn ? 'Tú' : (message.nickname || message.from || 'Usuario');
+    if (!isOwn && message.fromId) {
+        authorEl.classList.add('msg-author-link');
+        authorEl.addEventListener('click', (e) => {
+            e.stopPropagation();
+            const profile = getProfile(message.fromId);
+            if (profile) showUserProfileCard(profile);
+        });
+    }
 
     const timeEl = document.createElement('time');
     timeEl.dateTime = message.timestamp || new Date().toISOString();

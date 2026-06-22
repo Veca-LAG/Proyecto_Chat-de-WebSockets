@@ -59,6 +59,7 @@ export const elements = {
     logoutButton: document.getElementById('logoutButton'),
     profileAvatar: document.getElementById('profileAvatar'),
     profileName: document.getElementById('profileName'),
+    profileUsername: document.getElementById('profileUsername'),
     profileStatus: document.getElementById('profileStatus'),
     profileDescription: document.getElementById('profileDescription'),
     profileExtra: document.getElementById('profileExtra'),

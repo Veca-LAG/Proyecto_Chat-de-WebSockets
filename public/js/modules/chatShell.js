@@ -3,6 +3,7 @@ import { getInitials } from '../shared/utils.js';
 import { clearTypingIndicator } from './typing.js';
 import { getActiveUserByNickname, getKnownUserByNickname, ensurePrivateConversation } from './chatSelect.js';
 import { sendJson } from '../socket.js';
+import { getProfile, getProfileByNickname, renderAvatarContent, PRESENCE_CONFIG } from './profile.js';
 
 export function renderActiveChatShell() {
     clearTypingIndicator(elements.typingIndicator);
@@ -15,7 +16,9 @@ export function renderActiveChatShell() {
         elements.chatSubtitle.textContent = '';
         elements.profileAvatar.textContent = config.avatar;
         elements.profileName.textContent = 'Sin conversación';
+        if (elements.profileUsername) elements.profileUsername.textContent = '';
         elements.profileStatus.textContent = 'Selecciona un chat';
+        elements.profileStatus.style.color = '';
         elements.profileDescription.textContent = '';
         elements.profileExtra.innerHTML = '';
         return;
@@ -27,7 +30,9 @@ export function renderActiveChatShell() {
         elements.chatSubtitle.textContent = 'Todos los usuarios conectados pueden leer y enviar mensajes.';
         elements.profileAvatar.textContent = '#';
         elements.profileName.textContent = 'Foro Global';
+        if (elements.profileUsername) elements.profileUsername.textContent = '';
         elements.profileStatus.textContent = `● ${state.users.length} usuario(s) activo(s)`;
+        elements.profileStatus.style.color = '';
         elements.profileDescription.textContent = 'Canal público en tiempo real. El historial del servidor conserva los últimos 300 mensajes globales.';
         renderProfileUsers();
         return;
@@ -36,15 +41,61 @@ export function renderActiveChatShell() {
     if (state.activeChat.type === 'private') {
         const activeUser = getActiveUserByNickname(state.activeChat.name);
         const knownUser = getKnownUserByNickname(state.activeChat.name);
-        const fullName = [knownUser?.firstName, knownUser?.lastName].filter(Boolean).join(' ');
+        const profile = getProfile(activeUser?.id) || getProfileByNickname(state.activeChat.name);
+        const displayName = profile?.displayName || state.activeChat.name;
+        const presenceStatus = activeUser ? (profile?.presenceStatus || 'online') : 'offline';
+        const presenceCfg = PRESENCE_CONFIG[presenceStatus];
+
+        // ── Header del chat ──────────────────────────────────────────────
         elements.chatAvatar.textContent = getInitials(state.activeChat.name);
-        elements.chatTitle.textContent = state.activeChat.name;
-        elements.chatSubtitle.textContent = activeUser ? 'Chat privado · usuario en línea' : 'Chat privado · usuario desconectado';
-        elements.profileAvatar.textContent = getInitials(state.activeChat.name);
-        elements.profileName.textContent = state.activeChat.name;
-        elements.profileStatus.textContent = activeUser ? '● En línea' : '○ Desconectado';
-        elements.profileDescription.textContent = fullName || 'Los mensajes privados solo se muestran para el emisor y el destinatario.';
-        elements.profileExtra.innerHTML = knownUser?.code ? `<h3>Código de usuario</h3><p>${knownUser.code}</p>` : '';
+        elements.chatTitle.textContent = displayName;
+        elements.chatSubtitle.textContent = activeUser
+            ? `Chat privado · ${(presenceCfg?.label ?? 'En línea').toLowerCase()}`
+            : 'Chat privado · desconectado';
+
+        // ── Banner del panel de perfil ───────────────────────────────────
+        const bannerEl = document.querySelector('.profile-panel .profile-banner');
+        if (bannerEl) bannerEl.style.background = profile?.bannerColor || '';
+
+        // ── Avatar (con foto si existe) ──────────────────────────────────
+        renderAvatarContent(elements.profileAvatar, profile || { displayName: state.activeChat.name });
+
+        // ── Nombre, @usuario y estado ────────────────────────────────────
+        elements.profileName.textContent = displayName;
+        if (elements.profileUsername) {
+            elements.profileUsername.textContent = '@' + (profile?.username || state.activeChat.name);
+        }
+        elements.profileStatus.textContent = activeUser
+            ? `${presenceCfg?.icon ?? '●'} ${presenceCfg?.label ?? 'En línea'}`
+            : '○ Desconectado';
+        elements.profileStatus.style.color = activeUser
+            ? `var(--presence-${presenceStatus}, var(--presence-online))`
+            : 'var(--text-muted)';
+
+        // ── Bio (con fallback al nombre real) ────────────────────────────
+        const fullName = [knownUser?.firstName, knownUser?.lastName].filter(Boolean).join(' ');
+        elements.profileDescription.textContent = profile?.bio || fullName || '';
+
+        // ── Extra: pronombres y estado personalizado ─────────────────────
+        elements.profileExtra.innerHTML = '';
+        if (profile?.pronouns) {
+            const pr = document.createElement('p');
+            pr.className = 'profile-extra-item';
+            pr.textContent = profile.pronouns;
+            elements.profileExtra.appendChild(pr);
+        }
+        if (profile?.customStatus) {
+            const cs = document.createElement('p');
+            cs.className = 'profile-extra-item';
+            cs.textContent = (profile.statusEmoji ? profile.statusEmoji + ' ' : '') + profile.customStatus;
+            elements.profileExtra.appendChild(cs);
+        }
+
+        // Solicitar perfil al servidor si no está en caché
+        if (!profile && activeUser?.id) {
+            sendJson({ type: 'get_user_profile', payload: { userId: activeUser.id }, timestamp: new Date().toISOString() });
+        }
+
         return;
     }
 
@@ -54,7 +105,9 @@ export function renderActiveChatShell() {
     elements.chatSubtitle.textContent = `${group?.members?.length || 0} miembro(s) en la comunidad`;
     elements.profileAvatar.textContent = '#';
     elements.profileName.textContent = state.activeChat.name;
+    if (elements.profileUsername) elements.profileUsername.textContent = '';
     elements.profileStatus.textContent = 'Comunidad privada';
+    elements.profileStatus.style.color = '';
     elements.profileDescription.textContent = 'Los mensajes enviados aquí solo son visibles para miembros del grupo.';
     renderProfileGroupMembers(group);
 }

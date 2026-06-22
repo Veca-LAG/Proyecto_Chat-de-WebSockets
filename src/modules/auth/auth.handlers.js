@@ -57,7 +57,12 @@ async function attachAuthenticatedUser(ws, userRow, sessionToken) {
 
     try {
         const profileRow = await getOrCreateProfile(userRow.id, userRow.nickname);
-        sendJson(ws, { type: 'my_profile', payload: rowToProfile(profileRow, userRow.nickname), timestamp: new Date().toISOString() });
+        const profile = rowToProfile(profileRow, userRow.nickname);
+        const ts = new Date().toISOString();
+        sendJson(ws, { type: 'my_profile', payload: profile, timestamp: ts });
+        // Broadcast al resto para que cacheen el perfil del usuario que se conectó
+        broadcastLocal({ type: 'profile_updated', payload: profile, timestamp: ts });
+        await publishCluster({ event: 'profile_updated', payload: profile });
     } catch (_) { /* no bloquear auth si falla el perfil */ }
 
     if (wasOfflineLocal) logEvent(`${userRow.nickname} conectado`);

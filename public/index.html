@@ -274,6 +274,7 @@
                 <div class="profile-banner" aria-hidden="true"></div>
                 <div class="profile-avatar-large" id="profileAvatar" aria-hidden="true">#</div>
                 <h2 id="profileName">Sin conversación</h2>
+                <p class="profile-username" id="profileUsername"></p>
                 <p class="profile-status" id="profileStatus">Selecciona un chat</p>
                 <p class="profile-description" id="profileDescription"></p>
 
@@ -372,6 +373,9 @@
 
     <!-- ── TARJETA DE PERFIL DE OTRO USUARIO ── -->
     <div class="user-profile-card hidden" id="userProfileCard" role="dialog" aria-modal="true" aria-label="Perfil de usuario">
+        <button class="upc-close" id="upcCloseBtn" type="button" aria-label="Cerrar">
+            <svg class="icon" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg" aria-hidden="true"><path d="M6 18 18 6M6 6l12 12"/></svg>
+        </button>
         <div class="upc-banner" data-pf="banner"></div>
         <div class="upc-avatar-wrap">
             <div class="upc-avatar up-avatar" aria-hidden="true"></div>
@@ -380,6 +384,7 @@
         <div class="upc-body">
             <p class="upc-display-name" data-pf="display-name"></p>
             <p class="upc-username" data-pf="username"></p>
+            <p class="upc-pronouns" data-pf="pronouns" style="display:none"></p>
             <p class="upc-custom-status" data-pf="custom-status" style="display:none"></p>
             <p class="upc-bio" data-pf="bio" style="display:none"></p>
         </div>
@@ -457,6 +462,7 @@
                         </div>
                         <div class="pe-preview-body">
                             <p class="pe-preview-name" id="pvDisplayName"></p>
+                            <p class="pe-preview-fullname" id="pvFullName" style="display:none"></p>
                             <p class="pe-preview-username" id="pvUsername"></p>
                             <p class="pe-preview-status" id="pvCustomStatus" style="display:none"></p>
                             <p class="pe-preview-bio" id="pvBio" style="display:none"></p>

@@ -1,4 +1,5 @@
 import { renderAvatarContent, getInitialsFromName, escapeHtml } from './profile.js';
+import { state } from '../state.js';
 
 const MAX_AVATAR_BYTES = 400_000;
 let _sendJsonFn = null;
@@ -79,6 +80,13 @@ function _updatePreview(overrides) {
 
     const pvName = document.getElementById('pvDisplayName');
     if (pvName) pvName.textContent = data.displayName || _currentProfile?.username || '';
+
+    const pvFullName = document.getElementById('pvFullName');
+    if (pvFullName) {
+        const full = [state.firstName, state.lastName].filter(Boolean).join(' ');
+        pvFullName.textContent = full;
+        pvFullName.style.display = full ? '' : 'none';
+    }
 
     const pvUsername = document.getElementById('pvUsername');
     if (pvUsername) pvUsername.textContent = '@' + (_currentProfile?.username || '');

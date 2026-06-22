@@ -75,6 +75,16 @@
     color: rgba(255, 255, 255, 0.86);
 }
 
+.message-meta .msg-author-link {
+    cursor: pointer;
+    transition: opacity 0.12s ease;
+}
+
+.message-meta .msg-author-link:hover {
+    opacity: 0.72;
+    text-decoration: underline;
+}
+
 .message p {
     margin: 0;
     line-height: 1.45;

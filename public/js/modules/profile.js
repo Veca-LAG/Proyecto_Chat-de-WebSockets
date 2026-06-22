@@ -77,9 +77,23 @@ export function applyProfileToUserElements(userId) {
         const nameEl = el.querySelector('[data-pf="display-name"]');
         if (nameEl) nameEl.textContent = profile.displayName || profile.username || '';
 
+        const pronounsEl = el.querySelector('[data-pf="pronouns"]');
+        if (pronounsEl) {
+            pronounsEl.textContent = profile.pronouns || '';
+            pronounsEl.style.display = profile.pronouns ? '' : 'none';
+        }
+
         const statusEl = el.querySelector('[data-pf="custom-status"]');
         if (statusEl) {
-            statusEl.textContent = (profile.statusEmoji ? profile.statusEmoji + ' ' : '') + (profile.customStatus || '');
+            const txt = (profile.statusEmoji ? profile.statusEmoji + ' ' : '') + (profile.customStatus || '');
+            statusEl.textContent = txt;
+            statusEl.style.display = txt.trim() ? '' : 'none';
+        }
+
+        const bioEl = el.querySelector('[data-pf="bio"]');
+        if (bioEl) {
+            bioEl.textContent = profile.bio || '';
+            bioEl.style.display = profile.bio ? '' : 'none';
         }
 
         const dotEl = el.querySelector('.presence-dot');
@@ -307,10 +321,30 @@ export function closeStatusMenu() {
     document.getElementById('presenceSubMenu')?.classList.add('hidden');
 }
 
-export function showUserProfileCard(profile, anchorEl) {
+export function closeUserProfileCard() {
+    const card = document.getElementById('userProfileCard');
+    if (!card) return;
+    card.classList.add('hidden');
+    delete card.dataset.userId;
+}
+
+function _closeCardOnOutside(e) {
+    const card = document.getElementById('userProfileCard');
+    if (!card || card.classList.contains('hidden')) return;
+    if (!card.contains(e.target)) {
+        closeUserProfileCard();
+    } else {
+        document.addEventListener('click', _closeCardOnOutside, { once: true });
+    }
+}
+
+export function showUserProfileCard(profile) {
     if (!profile) return;
     const card = document.getElementById('userProfileCard');
     if (!card) return;
+
+    // data-user-id en la tarjeta → applyProfileToUserElements la refresca en tiempo real
+    card.dataset.userId = profile.userId || '';
 
     const banner = card.querySelector('[data-pf="banner"]');
     if (banner) banner.style.backgroundColor = profile.bannerColor || '#fbbf24';
@@ -324,8 +358,11 @@ export function showUserProfileCard(profile, anchorEl) {
     const un = card.querySelector('[data-pf="username"]');
     if (un) un.textContent = '@' + (profile.username || '');
 
-    const bio = card.querySelector('[data-pf="bio"]');
-    if (bio) { bio.textContent = profile.bio || ''; bio.style.display = profile.bio ? '' : 'none'; }
+    const pronounsEl = card.querySelector('[data-pf="pronouns"]');
+    if (pronounsEl) {
+        pronounsEl.textContent = profile.pronouns || '';
+        pronounsEl.style.display = profile.pronouns ? '' : 'none';
+    }
 
     const cs = card.querySelector('[data-pf="custom-status"]');
     if (cs) {
@@ -334,14 +371,21 @@ export function showUserProfileCard(profile, anchorEl) {
         cs.style.display = txt.trim() ? '' : 'none';
     }
 
+    const bio = card.querySelector('[data-pf="bio"]');
+    if (bio) {
+        bio.textContent = profile.bio || '';
+        bio.style.display = profile.bio ? '' : 'none';
+    }
+
     const dot = card.querySelector('.presence-dot');
     if (dot) applyPresenceDot(dot, profile.presenceStatus || 'online');
+
+    const closeBtn = document.getElementById('upcCloseBtn');
+    if (closeBtn) closeBtn.onclick = closeUserProfileCard;
 
     card.classList.remove('hidden');
 
     requestAnimationFrame(() => {
-        document.addEventListener('click', (e) => {
-            if (!card.contains(e.target)) card.classList.add('hidden');
-        }, { once: true });
+        document.addEventListener('click', _closeCardOnOutside, { once: true });
     });
 }

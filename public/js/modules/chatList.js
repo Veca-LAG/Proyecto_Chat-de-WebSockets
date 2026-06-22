@@ -3,6 +3,18 @@ import { sanitizeInput, getInitials } from '../shared/utils.js';
 import { selectPrivateByUser, selectPrivateConversation, selectGroup } from './chatSelect.js';
 import { getProfile, getProfileByNickname, PRESENCE_CONFIG } from './profile.js';
 
+// Para usuarios ajenos, 'invisible' siempre se representa como 'offline'
+function resolveStatus(userId, rawStatus) {
+    const st = rawStatus || 'online';
+    if (userId !== state.selfId && st === 'invisible') return 'offline';
+    return st;
+}
+
+function statusLabel(status) {
+    if (status === 'offline') return 'Desconectado';
+    return PRESENCE_CONFIG[status]?.label ?? 'En línea';
+}
+
 export function filterList(items, getText) {
     const term = sanitizeInput(elements.userSearchInput.value, 60).toLowerCase();
     if (!term) return items;
@@ -19,22 +31,22 @@ export function renderChatList() {
 function renderGlobalUserList() {
     const onlineNicknames = new Set(state.users.map(u => u.nickname.toLowerCase()));
 
-    // ── Usuarios conectados (excluir invisibles — aparecen como desconectados) ──
+    // ── Usuarios conectados (excluir invisibles — se muestran como desconectados) ─
     const users = filterList(state.users, (u) => u.nickname).filter((u) => {
         if (u.id === state.selfId) return true; // siempre mostrarme a mí mismo
         const p = getProfile(u.id);
-        return !p || p.presenceStatus !== 'offline'; // 'offline' en caché = invisible para los demás
+        return resolveStatus(u.id, p?.presenceStatus) !== 'offline';
     });
     users.forEach((user) => {
         const isSelf = user.id === state.selfId;
         const profile = getProfile(user.id);
-        const presenceStatus = profile?.presenceStatus || 'online';
+        const presenceStatus = resolveStatus(user.id, profile?.presenceStatus);
 
         elements.chatList.appendChild(createListItem({
             userId: user.id,
             avatar: getInitials(user.nickname),
             title: `${user.nickname}${isSelf ? ' (Tú)' : ''}`,
-            subtitle: isSelf ? 'Tu sesión activa' : (PRESENCE_CONFIG[presenceStatus]?.label ?? 'En línea') + ' · clic para privado',
+            subtitle: isSelf ? 'Tu sesión activa' : `${statusLabel(presenceStatus)} · clic para privado`,
             presenceStatus,
             active: state.activeChat?.type === 'private' && state.activeChat?.name === user.nickname,
             disabled: isSelf,
@@ -72,13 +84,13 @@ function renderPrivateConversationList() {
             (u) => u.nickname.toLowerCase() === (conv.nickname || '').toLowerCase()
         );
         const profile = onlineUser ? getProfile(onlineUser.id) : getProfileByNickname(conv.nickname);
-        const presenceStatus = onlineUser
-            ? (profile?.presenceStatus || 'online')
-            : 'offline';
-        const presenceLabel = PRESENCE_CONFIG[presenceStatus]?.label ?? 'Desconectado';
+        const userId = profile?.userId ?? onlineUser?.id ?? null;
+        const rawStatus = onlineUser ? (profile?.presenceStatus || 'online') : 'offline';
+        const presenceStatus = resolveStatus(userId, rawStatus);
+        const presenceLabel = statusLabel(presenceStatus);
 
         elements.chatList.appendChild(createListItem({
-            userId: profile?.userId ?? onlineUser?.id ?? null,
+            userId,
             avatar: getInitials(conv.nickname),
             title: conv.nickname,
             subtitle: lastMsg || presenceLabel,

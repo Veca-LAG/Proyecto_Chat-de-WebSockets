@@ -181,7 +181,7 @@ export function handleServerMessage(rawMessage) {
             }
             break;
 
-        case 'my_profile':
+        case 'my_profile': {
             upsertProfile(payload);
             updateSelfIdentity();
             refreshPresenceLabel();
@@ -193,14 +193,28 @@ export function handleServerMessage(rawMessage) {
             }
             document.dispatchEvent(new CustomEvent('ola:dnd-lock', { detail: { locked: wasDnd } }));
             break;
+        }
 
         case 'user_profile':
             upsertProfile(payload);
+            if (state.activeChat?.type === 'private') {
+                const nick = (payload.username || '').toLowerCase();
+                if (nick && nick === (state.activeChat.name || '').toLowerCase()) {
+                    renderActiveChatShell();
+                }
+            }
             break;
 
         case 'profile_updated':
             upsertProfile(payload);
-            if (payload.userId === state.selfId) updateSelfIdentity();
+            if (payload.userId === state.selfId) {
+                updateSelfIdentity();
+            } else if (state.activeChat?.type === 'private') {
+                const nick = (payload.username || '').toLowerCase();
+                if (nick && nick === (state.activeChat.name || '').toLowerCase()) {
+                    renderActiveChatShell();
+                }
+            }
             break;
 
         case 'presence_updated': {
@@ -244,12 +258,14 @@ export function handleServerMessage(rawMessage) {
                     // Actualización en vivo del dot y subtitle sin re-render completo
                     const listWrap = document.querySelector(`.chat-list-av-wrap[data-user-id="${payload.userId}"]`);
                     if (listWrap) {
+                        // invisible siempre se muestra como offline para usuarios ajenos
+                        const displayStatus = payload.presenceStatus === 'invisible' ? 'offline' : payload.presenceStatus;
                         const dot = listWrap.querySelector('.presence-dot');
-                        if (dot) applyPresenceDot(dot, payload.presenceStatus);
+                        if (dot) applyPresenceDot(dot, displayStatus);
                         const item = listWrap.closest('.chat-list-item');
                         const subtitle = item?.querySelector('small');
                         if (subtitle) {
-                            const label = PRESENCE_CONFIG[payload.presenceStatus]?.label ?? 'Desconectado';
+                            const label = displayStatus === 'offline' ? 'Desconectado' : (PRESENCE_CONFIG[displayStatus]?.label ?? 'Desconectado');
                             const parts = subtitle.textContent.split(' · ');
                             subtitle.textContent = parts.length > 1 ? `${label} · ${parts.slice(1).join(' · ')}` : label;
                         }

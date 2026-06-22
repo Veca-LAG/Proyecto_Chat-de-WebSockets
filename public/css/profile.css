@@ -29,12 +29,23 @@
 }
 
 .profile-avatar-large {
+    position: relative;
     width: 96px;
     height: 96px;
     margin-top: 0.75rem;
     border: 3px solid var(--color-border);
     border-radius: 50%;
     font-size: 2rem;
+    overflow: hidden;
+}
+
+.profile-avatar-large .avatar-img {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    border-radius: inherit;
 }
 
 .profile-card h2 {
@@ -42,10 +53,35 @@
     font-size: 1.35rem;
 }
 
+.profile-username {
+    margin: 0.1rem 0 0;
+    color: var(--text-muted);
+    font-size: 0.8rem;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
 .profile-status {
-    margin: 0.3rem 0 0;
+    margin: 0.4rem 0 0;
     color: var(--color-success);
     font-weight: 700;
+    transition: color 0.2s ease;
+}
+
+.pe-preview-fullname {
+    margin: 0.1rem 0 0;
+    color: var(--text-soft);
+    font-size: 0.76rem;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.profile-extra-item {
+    margin: 0.25rem 0 0;
+    color: var(--text-soft);
+    font-size: 0.82rem;
 }
 
 .profile-description {
@@ -314,13 +350,50 @@
     font-size: 0.76rem;
 }
 
+.upc-pronouns {
+    margin: 0.1rem 0 0;
+    overflow: hidden;
+    color: var(--text-muted);
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    font-size: 0.74rem;
+}
+
 .upc-bio {
-    margin: 0.45rem 0 0;
+    margin: 0.55rem 0 0;
+    padding-top: 0.5rem;
+    border-top: 1px solid var(--color-border);
     color: var(--text-primary);
     font-size: 0.8rem;
     font-weight: 400;
     line-height: 1.4;
     word-break: break-word;
+}
+
+.upc-close {
+    position: absolute;
+    top: 6px;
+    right: 6px;
+    z-index: 2;
+    display: grid;
+    place-items: center;
+    width: 26px;
+    height: 26px;
+    color: #fff;
+    background: rgba(0, 0, 0, 0.28);
+    border: 0;
+    border-radius: 50%;
+    cursor: pointer;
+    transition: background 0.14s ease;
+}
+
+.upc-close:hover {
+    background: rgba(0, 0, 0, 0.55);
+}
+
+.upc-close .icon {
+    width: 14px;
+    height: 14px;
 }
 
 /* ── Modal de edición de perfil ──────────────────────────────────────────────── */
