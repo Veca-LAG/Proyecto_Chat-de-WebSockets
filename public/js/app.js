@@ -8,7 +8,13 @@ import { validateLogin, validateRegister } from './modules/login.js';
 import { setupTypingEvents, clearTypingIndicator } from './modules/typing.js';
 import { setupEmojiPicker } from './modules/emojiPicker.js';
 import { setupModerationUI } from './modules/moderationSettings.js';
-import { initNotify } from '../sounds/notify.js';
+import {
+    initSoundManager,
+    unlockAudio,
+    setSoundEnabled,
+    isSoundEnabled,
+    playOutgoingMessageSound,
+} from '../sounds/sound.js';
 import { initMessageActions } from './modules/messageActions.js';
 import { clearReplyingTo } from './modules/messageReply.js';
 import { sendPrivate } from './modules/privateChat.js';
@@ -45,6 +51,29 @@ import { sendActiveTypingStatus, getActiveTypingContext } from './modules/typing
     else { window.addEventListener('load', tryDismiss, { once: true }); }
     setTimeout(dismiss, MAX_MS);
 })();
+
+// ── Sonido ────────────────────────────────────────────────────────────────────
+function setupSoundToggle() {
+    const btn    = document.getElementById('soundToggle');
+    if (!btn) return;
+    const iconOn  = btn.querySelector('.icon-sound-on');
+    const iconOff = btn.querySelector('.icon-sound-off');
+
+    const update = (enabled) => {
+        if (iconOn)  iconOn.style.display  = enabled ? '' : 'none';
+        if (iconOff) iconOff.style.display = enabled ? 'none' : '';
+        btn.setAttribute('aria-label', enabled ? 'Silenciar sonidos' : 'Activar sonidos');
+        btn.title = enabled ? 'Silenciar sonidos' : 'Activar sonidos';
+    };
+
+    update(isSoundEnabled());
+
+    btn.addEventListener('click', () => {
+        const next = !isSoundEnabled();
+        setSoundEnabled(next);
+        update(next);
+    });
+}
 
 // ── Tema ──────────────────────────────────────────────────────────────────────
 function setupThemeToggle() {
@@ -92,6 +121,7 @@ function handleMessageSubmit(event) {
         });
     }
 
+    playOutgoingMessageSound();
     clearReplyingTo(state, elements);
     elements.messageInput.value = '';
     clearTypingIndicator(elements.typingIndicator);
@@ -113,7 +143,7 @@ function handleLoginSubmit(event) {
 
     elements.loginError.textContent = '';
     setAuthLoading(true);
-    initNotify();
+    unlockAudio();
     connectWebSocket({
         type: state.authMode === 'register' ? 'register' : 'login',
         payload: validation.data
@@ -122,7 +152,12 @@ function handleLoginSubmit(event) {
 
 // ── Inicialización ────────────────────────────────────────────────────────────
 function initApp() {
+    initSoundManager();
+    document.addEventListener('click',    unlockAudio);
+    document.addEventListener('keydown',  unlockAudio);
+    document.addEventListener('touchstart', unlockAudio);
     setupThemeToggle();
+    setupSoundToggle();
     setupNavigation();
     setupSidebarToggle();
     setupListSearch();

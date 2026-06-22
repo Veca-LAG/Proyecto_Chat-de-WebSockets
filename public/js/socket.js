@@ -1,6 +1,7 @@
 import { state, RECONNECT_BASE_DELAY, RECONNECT_MAX_DELAY } from './state.js';
 import { updateConnectionStatus, setAuthLoading } from './modules/auth.js';
 import { handleServerMessage } from './dispatch.js';
+import { playUserOnlineSound } from '../sounds/sound.js';
 
 export function getWebSocketUrl() {
     const proto = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
@@ -33,9 +34,11 @@ export function connectWebSocket(authRequest = null) {
     state.pendingAuthRequest = authRequest;
 
     state.socket.addEventListener('open', () => {
+        const isReconnect = state.reconnectAttempts > 0;
         state.reconnectAttempts = 0;
         state.shouldReconnect = true;
         updateConnectionStatus('connected');
+        if (isReconnect) playUserOnlineSound();
 
         const request = state.pendingAuthRequest || (
             state.sessionToken

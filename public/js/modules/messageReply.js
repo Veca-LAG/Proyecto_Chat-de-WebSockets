@@ -55,6 +55,11 @@ export function renderReplyQuote(replyTo) {
     const quote = document.createElement('blockquote');
     quote.className = 'msg-reply-quote';
 
+    if (replyTo.id) {
+        quote.dataset.replyToId = replyTo.id;
+        quote.addEventListener('click', () => scrollToMessage(replyTo.id));
+    }
+
     const name = document.createElement('span');
     name.className = 'msg-reply-quote-name';
     name.textContent = replyTo.nickname || replyTo.author || 'Usuario';
@@ -67,4 +72,12 @@ export function renderReplyQuote(replyTo) {
 
     quote.append(name, text);
     return quote;
+}
+
+function scrollToMessage(id) {
+    const target = document.querySelector(`[data-message-id="${id}"]`);
+    if (!target) return;
+    target.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    target.classList.add('msg-highlight');
+    target.addEventListener('animationend', () => target.classList.remove('msg-highlight'), { once: true });
 }

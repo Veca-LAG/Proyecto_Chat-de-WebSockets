@@ -43,7 +43,7 @@ export function handleTypingStatus(indicator, payload, selfId) {
         indicator.innerHTML = '';
 
         const textSpan = document.createElement('span');
-        textSpan.textContent = `📝 ${name} está escribiendo `;
+        textSpan.textContent = `${name} está escribiendo `;
         textSpan.style.marginRight = '4px';
 
         const bounceContainer = document.createElement('div');

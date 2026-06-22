@@ -121,6 +121,25 @@
     background: rgba(0, 0, 0, 0.16);
     border-left: 4px solid #25d366;
     border-radius: 10px;
+    transition: background 0.15s;
+}
+
+.msg-reply-quote[data-reply-to-id] {
+    cursor: pointer;
+}
+
+.msg-reply-quote[data-reply-to-id]:hover {
+    background: rgba(0, 0, 0, 0.28);
+}
+
+@keyframes msgHighlight {
+    0%   { box-shadow: 0 0 0 3px rgba(37, 211, 102, 0.55); background: rgba(37, 211, 102, 0.18); }
+    100% { box-shadow: none; background: transparent; }
+}
+
+.msg-highlight {
+    animation: msgHighlight 1.5s ease forwards;
+    border-radius: 14px;
 }
 
 .message-own .msg-reply-quote {

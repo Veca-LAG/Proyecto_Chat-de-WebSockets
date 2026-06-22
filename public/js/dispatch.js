@@ -16,7 +16,14 @@ import { loadPrivateConversationsFromServer } from './modules/chatSelect.js';
 import { checkInviteToken, showInviteLink, renderParticipantsList } from './modules/groups.js';
 import { isTypingStatusForActiveChat } from './modules/typingContext.js';
 import { saveUnreadCounts } from './shared/storage.js';
-import { playNotify } from '../sounds/notify.js';
+import {
+    playIncomingMessageSound,
+    playMentionSound,
+    playSoftErrorSound,
+    playReactionSound,
+    playUserOnlineSound,
+    playUserOfflineSound,
+} from '../sounds/sound.js';
 
 export function handleServerMessage(rawMessage) {
     let data;
@@ -73,6 +80,7 @@ export function handleServerMessage(rawMessage) {
             renderChatList();
             updateComposerState();
             checkInviteToken();
+            playUserOnlineSound();
             break;
 
         case 'history':
@@ -104,12 +112,18 @@ export function handleServerMessage(rawMessage) {
                 saveUnreadCounts();
                 renderNavigation();
             }
-            if (payload.fromId !== state.selfId) playNotify();
+            // Foro global: sin sonido genérico (100+ usuarios sería molesto).
+            // Solo se avisa si alguien menciona directamente al usuario.
+            if (payload.fromId !== state.selfId && state.nickname) {
+                const hasMention = String(payload.text || '').toLowerCase()
+                    .includes('@' + state.nickname.toLowerCase());
+                if (hasMention) playMentionSound();
+            }
             break;
 
         case 'private_msg':
             receivePrivateMessage(payload, timestamp);
-            if (payload.fromId !== state.selfId) playNotify();
+            if (payload.fromId !== state.selfId) playIncomingMessageSound();
             renderNavigation();
             break;
 
@@ -123,6 +137,9 @@ export function handleServerMessage(rawMessage) {
                 applyReactionSnapshot(payload.messageId, payload.reactions, state.selfId);
             } else {
                 applyIncomingReaction(payload.messageId, payload.emoji, payload.userId, payload.action, state.selfId);
+                if (payload.userId !== state.selfId && payload.action === 'add') {
+                    playReactionSound();
+                }
             }
             break;
 
@@ -136,13 +153,19 @@ export function handleServerMessage(rawMessage) {
 
         case 'group_msg':
             receiveGroupMessage(payload, timestamp);
-            if (payload.fromId !== state.selfId) playNotify();
+            if (payload.fromId !== state.selfId) {
+                const hasMention = state.nickname &&
+                    String(payload.text || '').toLowerCase()
+                        .includes('@' + state.nickname.toLowerCase());
+                hasMention ? playMentionSound() : playIncomingMessageSound();
+            }
             break;
 
         case 'private_error':
         case 'group_error':
         case 'error':
             renderSystemMessage(payload.text || 'Ocurrió un error.', timestamp);
+            playSoftErrorSound();
             break;
 
         case 'typing_status':
@@ -176,6 +199,9 @@ export function handleServerMessage(rawMessage) {
             if (payload.userId === state.selfId) {
                 const selfDot = document.getElementById('selfPresenceDot');
                 if (selfDot) applyPresenceDot(selfDot, payload.presenceStatus);
+            } else {
+                if (payload.presenceStatus === 'online') playUserOnlineSound();
+                else if (payload.presenceStatus === 'offline') playUserOfflineSound();
             }
             break;
         }
