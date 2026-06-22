@@ -35,9 +35,15 @@ export function validateRegister(values) {
         return { valid: false, data: {}, error: 'Nombre, apellido y nickname son obligatorios.' };
     }
 
-    if (!/^[A-Za-zÁÉÍÓÚáéíóúÑñ]+$/.test(firstName) || !/^[A-Za-zÁÉÍÓÚáéíóúÑñ]+$/.test(lastName)) {
-        return { valid: false, data: {}, error: 'Nombre y apellido solo pueden contener letras.' };
-    } else if (firstName.length < 2 || lastName.length < 2) {
+    const letras = /^[A-Za-zÁÉÍÓÚáéíóúÑñ]+$/;
+    const letrasConEspacios = /^[A-Za-zÁÉÍÓÚáéíóúÑñ]+(\s[A-Za-zÁÉÍÓÚáéíóúÑñ]+)*$/;
+    if (!letras.test(firstName)) {
+        return { valid: false, data: {}, error: 'El nombre solo puede contener letras.' };
+    }
+    if (!letrasConEspacios.test(lastName)) {
+        return { valid: false, data: {}, error: 'El apellido solo puede contener letras y un espacio entre apellidos.' };
+    }
+    if (firstName.length < 2 || lastName.length < 2) {
         return { valid: false, data: {}, error: 'Nombre y apellido deben tener al menos 2 caracteres.' };
     }
 
