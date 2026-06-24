@@ -1,7 +1,6 @@
 # Ola - Chat WebSocket Distribuido
 
-**Ola** es una aplicación de chat en tiempo real desarrollada con **Node.js**, **WebSockets nativos**, **PostgreSQL** y **Redis Pub/Sub**.
-El proyecto está diseñado para funcionar con uno o varios servidores al mismo tiempo, permitiendo comunicación en tiempo real entre usuarios conectados a diferentes instancias del servidor.
+**Ola** es una aplicación de chat en tiempo real desarrollada con tecnologías utilizadas principales como Node.js, WebSockets nativos, PostgreSQL y Redis Pub/Sub. El proyecto está diseñado para funcionar con uno o varios servidores al mismo tiempo, permitiendo comunicación en tiempo real entre usuarios conectados a diferentes instancias del servidor gracias a estos complementos implementados.
 
 ---
 
