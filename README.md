@@ -1018,7 +1018,7 @@ Para mantener el proyecto ordenado:
 
 ---
 
-## 28. Organización sugerida del equipo
+## 28. Integrantes del Equipo
 
 | Integrante | Área principal                                          |
 | ---------- | ------------------------------------------------------- |
